@@ -594,6 +594,12 @@ class FeaturesTab(QWidget):
             return None
         return pixmap
 
+    @staticmethod
+    def _should_process_progress_events(current: int, total: int) -> bool:
+        return (current % _PROGRESS_EVENTS_STEP == 0) or (
+            current == total and current % _PROGRESS_EVENTS_STEP != 0
+        )
+
     def _list_audio_files_recursive(self, folder: str) -> list[Path]:
         result: list[Path] = []
         for dirpath, _, filenames in os.walk(folder):
@@ -640,18 +646,12 @@ class FeaturesTab(QWidget):
             except OSError as e:
                 errors.append(f"{f}: {e}")
                 progress.setValue(idx)
-                should_process = (idx % _PROGRESS_EVENTS_STEP == 0) or (
-                    idx == total_files and idx % _PROGRESS_EVENTS_STEP != 0
-                )
-                if should_process:
+                if self._should_process_progress_events(idx, total_files):
                     QApplication.processEvents()
                 continue
             groups.setdefault(sig, []).append(f)
             progress.setValue(idx)
-            should_process = (idx % _PROGRESS_EVENTS_STEP == 0) or (
-                idx == total_files and idx % _PROGRESS_EVENTS_STEP != 0
-            )
-            if should_process:
+            if self._should_process_progress_events(idx, total_files):
                 QApplication.processEvents()
 
         progress.close()
@@ -692,7 +692,7 @@ class FeaturesTab(QWidget):
             group_radio = QButtonGroup(dlg)
             group_radio.setExclusive(True)
             radio_path_pairs: list[tuple[QRadioButton, Path]] = []
-            # ברירת המחדל לשמירה: שם קובץ קצר ביותר (ואז שם/נתיב לקביעות).
+            # ברירת המחדל לשמירה: שם קובץ קצר ביותר, ואז שם (ללא תלות רישיות), ואז נתיב.
             keep_path = min(paths, key=lambda p: (len(p.name), p.name.casefold(), p.as_posix()))
 
             for p in paths:
