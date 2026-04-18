@@ -596,9 +596,7 @@ class FeaturesTab(QWidget):
 
     @staticmethod
     def _should_process_progress_events(current: int, total: int) -> bool:
-        return (current % _PROGRESS_EVENTS_STEP == 0) or (
-            current == total and current % _PROGRESS_EVENTS_STEP != 0
-        )
+        return (current % _PROGRESS_EVENTS_STEP == 0) or (current == total)
 
     def _list_audio_files_recursive(self, folder: str) -> list[Path]:
         result: list[Path] = []
@@ -645,11 +643,8 @@ class FeaturesTab(QWidget):
                 sig = self._sha256_audio_without_edge_silence(f)
             except OSError as e:
                 errors.append(f"{f}: {e}")
-                progress.setValue(idx)
-                if self._should_process_progress_events(idx, total_files):
-                    QApplication.processEvents()
-                continue
-            groups.setdefault(sig, []).append(f)
+            else:
+                groups.setdefault(sig, []).append(f)
             progress.setValue(idx)
             if self._should_process_progress_events(idx, total_files):
                 QApplication.processEvents()
@@ -752,13 +747,18 @@ class FeaturesTab(QWidget):
             return
 
         to_delete: list[Path] = []
+        missing_selection = False
         for group_radio, options in keep_choices:
             keep_button = group_radio.checkedButton()
-            if keep_button is None and options:
-                keep_button = options[0][0]
+            if keep_button is None:
+                missing_selection = True
+                continue
             for rb, p in options:
                 if rb is not keep_button:
                     to_delete.append(p)
+        if missing_selection:
+            QMessageBox.warning(self, "כפילויות", "יש לבחור שיר לשמירה בכל קבוצה לפני מחיקה.")
+            return
 
         if not to_delete:
             QMessageBox.information(self, "כפילויות", "לא נבחרו קבצים למחיקה.")
