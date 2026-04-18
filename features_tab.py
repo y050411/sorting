@@ -4,16 +4,25 @@ import hashlib
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QCheckBox, QMessageBox, QRadioButton, QButtonGroup,
     QFrame, QInputDialog, QDialog, QTextEdit, QDialogButtonBox, QScrollArea,
+    QProgressDialog,
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
 
 try:
     from mutagen import File as MutagenFile
 except Exception:
     MutagenFile = None
+
+try:
+    from pydub import AudioSegment
+    from pydub.silence import detect_leading_silence
+except Exception:
+    AudioSegment = None
+    detect_leading_silence = None
 
 from shared import HebrewLineEdit
 
@@ -492,6 +501,79 @@ class FeaturesTab(QWidget):
                 hasher.update(chunk)
         return hasher.hexdigest()
 
+    @staticmethod
+    def _sha256_audio_without_edge_silence(path: Path) -> str:
+        if AudioSegment is None or detect_leading_silence is None:
+            raise OSError("חסרה הספרייה pydub")
+
+        try:
+            audio = AudioSegment.from_file(str(path))
+        except Exception as e:
+            raise OSError(str(e))
+
+        if len(audio) == 0:
+            return hashlib.sha256(b"").hexdigest()
+
+        silence_thresh = -50 if audio.dBFS == float("-inf") else audio.dBFS - 16
+        start_trim = detect_leading_silence(audio, silence_thresh=silence_thresh, chunk_size=10)
+        end_trim = detect_leading_silence(audio.reverse(), silence_thresh=silence_thresh, chunk_size=10)
+        end_index = max(start_trim, len(audio) - end_trim)
+        trimmed = audio[start_trim:end_index]
+
+        if len(trimmed) == 0:
+            payload = b""
+        else:
+            payload = (
+                f"{trimmed.frame_rate}|{trimmed.channels}|{trimmed.sample_width}|".encode("utf-8")
+                + trimmed.raw_data
+            )
+        return hashlib.sha256(payload).hexdigest()
+
+    def _extract_album_art_pixmap(self, path: Path) -> QPixmap | None:
+        if MutagenFile is None:
+            return None
+        try:
+            audio = MutagenFile(str(path))
+        except Exception:
+            return None
+        if audio is None:
+            return None
+
+        image_data = None
+        tags = getattr(audio, "tags", None)
+
+        if tags is not None and hasattr(tags, "getall"):
+            try:
+                apic_list = tags.getall("APIC")
+                if apic_list:
+                    image_data = getattr(apic_list[0], "data", None)
+            except Exception:
+                image_data = None
+
+        if image_data is None and hasattr(audio, "pictures"):
+            try:
+                pics = getattr(audio, "pictures", [])
+                if pics:
+                    image_data = getattr(pics[0], "data", None)
+            except Exception:
+                image_data = None
+
+        if image_data is None and tags is not None and hasattr(tags, "get"):
+            try:
+                covr = tags.get("covr")
+                if covr:
+                    image_data = bytes(covr[0])
+            except Exception:
+                image_data = None
+
+        if not image_data:
+            return None
+
+        pixmap = QPixmap()
+        if not pixmap.loadFromData(image_data):
+            return None
+        return pixmap
+
     def _list_audio_files_recursive(self, folder: str) -> list[Path]:
         result: list[Path] = []
         for dirpath, _, filenames in os.walk(folder):
@@ -511,16 +593,40 @@ class FeaturesTab(QWidget):
         if not files:
             QMessageBox.information(self, "אין קבצים", "לא נמצאו קבצי שמע בתיקייה.")
             return
+        if AudioSegment is None or detect_leading_silence is None:
+            QMessageBox.warning(
+                self,
+                "חסרה ספרייה",
+                "כדי למחוק כפילויות לפי חתימה עם חיתוך שקט צריך להתקין pydub:\n\npip install pydub",
+            )
+            return
 
         groups: dict[str, list[Path]] = {}
         errors: list[str] = []
-        for f in files:
+        total_files = len(files)
+        progress = QProgressDialog("סורק קבצים לחתימה...", "ביטול", 0, total_files, self)
+        progress.setWindowTitle("מחיקת כפילויות לפי חתימה")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.setValue(0)
+
+        for idx, f in enumerate(files, start=1):
+            if progress.wasCanceled():
+                progress.close()
+                QMessageBox.information(self, "כפילויות", "הסריקה בוטלה על ידי המשתמש.")
+                return
             try:
-                sig = self._sha256_file(f)
+                sig = self._sha256_audio_without_edge_silence(f)
             except OSError as e:
                 errors.append(f"{f}: {e}")
+                progress.setValue(idx)
+                QApplication.processEvents()
                 continue
             groups.setdefault(sig, []).append(f)
+            progress.setValue(idx)
+            QApplication.processEvents()
+
+        progress.close()
 
         duplicates = [sorted(paths, key=lambda p: p.as_posix()) for paths in groups.values() if len(paths) > 1]
         duplicates.sort(key=lambda paths: (-len(paths), paths[0].as_posix()))
@@ -536,7 +642,7 @@ class FeaturesTab(QWidget):
         dlg.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         dlg.resize(*_DUP_SIGNATURE_DLG_SIZE)
         layout = QVBoxLayout(dlg)
-        layout.addWidget(QLabel("סמן את העותקים למחיקה (נתיב מלא):"))
+        layout.addWidget(QLabel("בחר שיר לשמירה בכל קבוצה (כל השאר יסומנו למחיקה):"))
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -544,16 +650,60 @@ class FeaturesTab(QWidget):
         container_layout = QVBoxLayout(container)
         container_layout.setSpacing(10)
 
-        checkboxes: list[tuple[QCheckBox, Path]] = []
+        keep_choices: list[tuple[QButtonGroup, list[tuple[QRadioButton, Path]]]] = []
         for idx, paths in enumerate(duplicates, start=1):
             group_label = QLabel(f"קבוצה {idx} ({len(paths)} עותקים זהים):")
             group_label.setStyleSheet("font-weight: 700; color: #2c4a6e;")
             container_layout.addWidget(group_label)
+
+            row_widget = QWidget()
+            row_layout = QHBoxLayout(row_widget)
+            row_layout.setSpacing(16)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+
+            group_radio = QButtonGroup(dlg)
+            group_radio.setExclusive(True)
+            radio_path_pairs: list[tuple[QRadioButton, Path]] = []
+            keep_path = min(paths, key=lambda p: (len(p.name), p.name.casefold(), p.as_posix()))
+
             for p in paths:
-                cb = QCheckBox(str(p))
-                cb.setStyleSheet(_CB_STYLE)
-                container_layout.addWidget(cb)
-                checkboxes.append((cb, p))
+                item_widget = QWidget()
+                item_layout = QVBoxLayout(item_widget)
+                item_layout.setSpacing(6)
+                item_layout.setContentsMargins(0, 0, 0, 0)
+                item_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+
+                art_label = QLabel("ללא תמונה")
+                art_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                art_label.setStyleSheet(
+                    "font-size: 12px; color: #5a6b85; border: 1px solid #c3d5ee; "
+                    "border-radius: 6px; min-width: 130px; min-height: 130px; padding: 4px;"
+                )
+                pixmap = self._extract_album_art_pixmap(p)
+                if pixmap is not None:
+                    art_label.setPixmap(
+                        pixmap.scaled(
+                            130,
+                            130,
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation,
+                        )
+                    )
+                    art_label.setStyleSheet("border: 1px solid #c3d5ee; border-radius: 6px;")
+                item_layout.addWidget(art_label)
+
+                rb = QRadioButton(p.name)
+                rb.setToolTip(str(p))
+                rb.setChecked(p == keep_path)
+                rb.setStyleSheet(_RB_STYLE)
+                group_radio.addButton(rb)
+                item_layout.addWidget(rb)
+                row_layout.addWidget(item_widget)
+                radio_path_pairs.append((rb, p))
+
+            row_layout.addStretch()
+            container_layout.addWidget(row_widget)
+            keep_choices.append((group_radio, radio_path_pairs))
 
         container_layout.addStretch()
         scroll.setWidget(container)
@@ -571,7 +721,15 @@ class FeaturesTab(QWidget):
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
 
-        to_delete = [p for cb, p in checkboxes if cb.isChecked()]
+        to_delete: list[Path] = []
+        for group_radio, options in keep_choices:
+            keep_button = group_radio.checkedButton()
+            if keep_button is None and options:
+                keep_button = options[0][0]
+            for rb, p in options:
+                if rb is not keep_button:
+                    to_delete.append(p)
+
         if not to_delete:
             QMessageBox.information(self, "כפילויות", "לא נבחרו קבצים למחיקה.")
             return
