@@ -526,12 +526,12 @@ class FeaturesTab(QWidget):
         )
         start_trim = detect_leading_silence(
             audio,
-            silence_thresh=silence_thresh,
+            silence_threshold=silence_thresh,
             chunk_size=_SILENCE_CHUNK_MS,
         )
         end_trim = detect_leading_silence(
             audio.reverse(),
-            silence_thresh=silence_thresh,
+            silence_threshold=silence_thresh,
             chunk_size=_SILENCE_CHUNK_MS,
         )
         end_index = len(audio) - end_trim
