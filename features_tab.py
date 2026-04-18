@@ -52,7 +52,6 @@ _WB_AFTER  = r"(?![א-תA-Za-z\d])"
 # Maximum number of items shown in a truncated message box list
 # (prevents the dialog from becoming too tall to be usable).
 _MAX_MSG_ITEMS = 20
-_DUP_SIGNATURE_DLG_SIZE = (860, 560)
 _HASH_CHUNK_SIZE = 1024 * 1024
 _ALBUM_ART_SIZE = 130
 _PROGRESS_EVENTS_STEP = 25
@@ -607,13 +606,38 @@ class FeaturesTab(QWidget):
                     result.append(p)
         return result
 
+    def _list_audio_files_flat(self, folder: str) -> list[Path]:
+        """List audio files in the given folder only (no subfolders)."""
+        if not folder or not os.path.isdir(folder):
+            return []
+        return [
+            p for p in Path(folder).iterdir()
+            if p.is_file() and p.suffix.lower() in AUDIO_EXTENSIONS
+        ]
+
     def _delete_duplicates_by_signature(self) -> None:
         folder = self._get_folder()
         if not folder or not os.path.isdir(folder):
             QMessageBox.warning(self, "שגיאה", "יש לבחור תיקייה תחילה.")
             return
 
-        files = self._list_audio_files_recursive(folder)
+        # ── Ask user whether to include subfolders ─────────────────────
+        scope_dlg = QMessageBox(self)
+        scope_dlg.setWindowTitle("מחיקת כפילויות לפי חתימה")
+        scope_dlg.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        scope_dlg.setText("האם לכלול גם תתי-תיקיות בסריקה?")
+        scope_dlg.setIcon(QMessageBox.Icon.Question)
+        btn_with_sub = scope_dlg.addButton("כולל תתי-תיקיות", QMessageBox.ButtonRole.YesRole)
+        btn_main_only = scope_dlg.addButton("תיקייה ראשית בלבד", QMessageBox.ButtonRole.NoRole)
+        scope_dlg.addButton("ביטול", QMessageBox.ButtonRole.RejectRole)
+        scope_dlg.exec()
+        clicked = scope_dlg.clickedButton()
+        if clicked is btn_with_sub:
+            files = self._list_audio_files_recursive(folder)
+        elif clicked is btn_main_only:
+            files = self._list_audio_files_flat(folder)
+        else:
+            return
         if not files:
             QMessageBox.information(self, "אין קבצים", "לא נמצאו קבצי שמע בתיקייה.")
             return
@@ -660,28 +684,68 @@ class FeaturesTab(QWidget):
             QMessageBox.information(self, "כפילויות", msg)
             return
 
+        base_folder = Path(folder)
+
         dlg = QDialog(self)
         dlg.setWindowTitle("מחיקת כפילויות לפי חתימה")
         dlg.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
-        dlg.resize(*_DUP_SIGNATURE_DLG_SIZE)
+        dlg.resize(960, 620)
+        dlg.setStyleSheet("""
+            QDialog { background: #f8fafd; }
+            QScrollArea { border: none; background: transparent; }
+        """)
         layout = QVBoxLayout(dlg)
-        layout.addWidget(QLabel("בחר שיר לשמירה בכל קבוצה (כל השאר יסומנו למחיקה):"))
+        layout.setContentsMargins(20, 20, 20, 16)
+        layout.setSpacing(12)
 
+        # ── Header ─────────────────────────────────────────────────────
+        header = QLabel("בחר שיר לשמירה בכל קבוצה — כל השאר יימחקו")
+        header.setStyleSheet(
+            "font-size: 16px; font-weight: 700; color: #1c355e; padding: 0 0 4px 0;"
+        )
+        layout.addWidget(header)
+
+        total_dups = sum(len(p) - 1 for p in duplicates)
+        summary_lbl = QLabel(
+            f"נמצאו {len(duplicates)} קבוצות כפילויות  •  {total_dups} קבצים מיותרים"
+        )
+        summary_lbl.setStyleSheet("font-size: 13px; color: #5a6b85; padding: 0 0 6px 0;")
+        layout.addWidget(summary_lbl)
+
+        # ── Scroll area ────────────────────────────────────────────────
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         container = QWidget()
+        container.setStyleSheet("background: transparent;")
         container_layout = QVBoxLayout(container)
-        container_layout.setSpacing(10)
+        container_layout.setSpacing(14)
+        container_layout.setContentsMargins(0, 0, 8, 0)
 
         keep_choices: list[tuple[QButtonGroup, list[tuple[QRadioButton, Path]]]] = []
         for idx, paths in enumerate(duplicates, start=1):
-            group_label = QLabel(f"קבוצה {idx} ({len(paths)} עותקים זהים):")
-            group_label.setStyleSheet("font-weight: 700; color: #2c4a6e;")
-            container_layout.addWidget(group_label)
+            # ── Group card ─────────────────────────────────────────────
+            card = QFrame()
+            card.setStyleSheet("""
+                QFrame {
+                    background: #ffffff;
+                    border: 1px solid #d4dfe9;
+                    border-radius: 10px;
+                }
+            """)
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(16, 12, 16, 12)
+            card_layout.setSpacing(10)
+
+            group_label = QLabel(f"קבוצה {idx}  —  {len(paths)} עותקים זהים")
+            group_label.setStyleSheet(
+                "font-size: 14px; font-weight: 700; color: #2c4a6e; border: none;"
+            )
+            card_layout.addWidget(group_label)
 
             row_widget = QWidget()
+            row_widget.setStyleSheet("border: none;")
             row_layout = QHBoxLayout(row_widget)
-            row_layout.setSpacing(16)
+            row_layout.setSpacing(18)
             row_layout.setContentsMargins(0, 0, 0, 0)
 
             group_radio = QButtonGroup(dlg)
@@ -691,21 +755,34 @@ class FeaturesTab(QWidget):
             keep_path = min(paths, key=lambda p: (len(p.name), p.name.casefold(), p.as_posix()))
 
             for p in paths:
-                item_widget = QWidget()
-                item_layout = QVBoxLayout(item_widget)
+                item_frame = QFrame()
+                item_frame.setStyleSheet("""
+                    QFrame {
+                        background: #f5f8fc;
+                        border: 1px solid #e0e8f0;
+                        border-radius: 8px;
+                    }
+                    QFrame:hover {
+                        background: #eaf0f8;
+                        border-color: #a0b8d0;
+                    }
+                """)
+                item_layout = QVBoxLayout(item_frame)
                 item_layout.setSpacing(6)
-                item_layout.setContentsMargins(0, 0, 0, 0)
+                item_layout.setContentsMargins(10, 10, 10, 10)
                 item_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
 
-                art_label = QLabel("ללא תמונה")
+                art_label = QLabel("ללא\nתמונה")
                 art_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 art_label.setStyleSheet(
-                    "font-size: 12px; color: #5a6b85; border: 1px solid #c3d5ee; "
+                    "font-size: 11px; color: #8a9bb5; border: 1px dashed #c3d5ee; "
                     f"border-radius: 6px; min-width: {_ALBUM_ART_SIZE}px; "
-                    f"min-height: {_ALBUM_ART_SIZE}px; padding: 4px;"
+                    f"min-height: {_ALBUM_ART_SIZE}px; max-width: {_ALBUM_ART_SIZE}px; "
+                    f"max-height: {_ALBUM_ART_SIZE}px; padding: 4px; background: #eef3fa;"
                 )
                 pixmap = self._extract_album_art_pixmap(p)
                 if pixmap is not None:
+                    art_label.setText("")
                     art_label.setPixmap(
                         pixmap.scaled(
                             _ALBUM_ART_SIZE,
@@ -714,34 +791,76 @@ class FeaturesTab(QWidget):
                             Qt.TransformationMode.SmoothTransformation,
                         )
                     )
-                    art_label.setStyleSheet("border: 1px solid #c3d5ee; border-radius: 6px;")
-                item_layout.addWidget(art_label)
+                    art_label.setStyleSheet(
+                        f"border: 1px solid #c3d5ee; border-radius: 6px; "
+                        f"max-width: {_ALBUM_ART_SIZE}px; max-height: {_ALBUM_ART_SIZE}px;"
+                    )
+                item_layout.addWidget(art_label, alignment=Qt.AlignmentFlag.AlignHCenter)
 
                 rb = QRadioButton(p.name)
                 rb.setToolTip(str(p))
                 rb.setChecked(p == keep_path)
-                rb.setStyleSheet(_RB_STYLE)
+                rb.setStyleSheet(
+                    "font-size: 13px; color: #1c355e; font-weight: 500; "
+                    "border: none; padding: 2px 0;"
+                )
                 group_radio.addButton(rb)
                 item_layout.addWidget(rb)
-                row_layout.addWidget(item_widget)
+
+                # Show relative path from the base folder
+                try:
+                    rel = p.parent.relative_to(base_folder)
+                    folder_text = str(rel) if str(rel) != "." else "תיקייה ראשית"
+                except ValueError:
+                    folder_text = str(p.parent)
+                path_label = QLabel(f"📁 {folder_text}")
+                path_label.setStyleSheet(
+                    "font-size: 11px; color: #7a8da5; border: none; padding: 0;"
+                )
+                path_label.setToolTip(str(p.parent))
+                item_layout.addWidget(path_label)
+
+                row_layout.addWidget(item_frame)
                 radio_path_pairs.append((rb, p))
 
             row_layout.addStretch()
-            container_layout.addWidget(row_widget)
+            card_layout.addWidget(row_widget)
+            container_layout.addWidget(card)
             keep_choices.append((group_radio, radio_path_pairs))
 
         container_layout.addStretch()
         scroll.setWidget(container)
         layout.addWidget(scroll)
 
-        btn_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        btn_box.button(QDialogButtonBox.StandardButton.Ok).setText("מחק מסומנים")
-        btn_box.button(QDialogButtonBox.StandardButton.Cancel).setText("ביטול")
-        btn_box.accepted.connect(dlg.accept)
-        btn_box.rejected.connect(dlg.reject)
-        layout.addWidget(btn_box)
+        # ── Bottom buttons ─────────────────────────────────────────────
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(10)
+        btn_row.addStretch()
+
+        cancel_btn = QPushButton("ביטול")
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                background: #e8edf3; color: #3a4a60; border-radius: 8px;
+                padding: 9px 30px; font-size: 14px; font-weight: 600;
+                border: 1px solid #c3d5ee;
+            }
+            QPushButton:hover { background: #d5dde8; }
+        """)
+        cancel_btn.clicked.connect(dlg.reject)
+        btn_row.addWidget(cancel_btn)
+
+        delete_btn = QPushButton("🗑  מחק מסומנים")
+        delete_btn.setStyleSheet("""
+            QPushButton {
+                background: #c0392b; color: #fff; border-radius: 8px;
+                padding: 9px 30px; font-size: 14px; font-weight: 700;
+            }
+            QPushButton:hover { background: #a93226; }
+        """)
+        delete_btn.clicked.connect(dlg.accept)
+        btn_row.addWidget(delete_btn)
+
+        layout.addLayout(btn_row)
 
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
