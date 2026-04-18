@@ -44,6 +44,7 @@ _WB_AFTER  = r"(?![א-תA-Za-z\d])"
 # (prevents the dialog from becoming too tall to be usable).
 _MAX_MSG_ITEMS = 20
 _DUP_SIGNATURE_DLG_SIZE = (860, 560)
+_HASH_CHUNK_SIZE = 1024 * 1024
 
 # ---------------------------------------------------------------------------
 # Styles
@@ -487,7 +488,7 @@ class FeaturesTab(QWidget):
     def _sha256_file(path: Path) -> str:
         hasher = hashlib.sha256()
         with path.open("rb") as fh:
-            for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            for chunk in iter(lambda: fh.read(_HASH_CHUNK_SIZE), b""):
                 hasher.update(chunk)
         return hasher.hexdigest()
 
@@ -522,7 +523,7 @@ class FeaturesTab(QWidget):
             groups.setdefault(sig, []).append(f)
 
         duplicates = [sorted(paths, key=lambda p: p.as_posix()) for paths in groups.values() if len(paths) > 1]
-        duplicates.sort(key=lambda paths: (-len(paths), str(paths[0])))
+        duplicates.sort(key=lambda paths: (-len(paths), paths[0].as_posix()))
         if not duplicates:
             msg = "לא נמצאו כפילויות לפי חתימה."
             if errors:
