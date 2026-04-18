@@ -54,6 +54,8 @@ _WB_AFTER  = r"(?![א-תA-Za-z\d])"
 _MAX_MSG_ITEMS = 20
 _DUP_SIGNATURE_DLG_SIZE = (860, 560)
 _HASH_CHUNK_SIZE = 1024 * 1024
+_ALBUM_ART_SIZE = 130
+_PROGRESS_EVENTS_STEP = 25
 
 # ---------------------------------------------------------------------------
 # Styles
@@ -517,8 +519,11 @@ class FeaturesTab(QWidget):
         silence_thresh = -50 if audio.dBFS == float("-inf") else audio.dBFS - 16
         start_trim = detect_leading_silence(audio, silence_thresh=silence_thresh, chunk_size=10)
         end_trim = detect_leading_silence(audio.reverse(), silence_thresh=silence_thresh, chunk_size=10)
-        end_index = max(start_trim, len(audio) - end_trim)
-        trimmed = audio[start_trim:end_index]
+        end_index = len(audio) - end_trim
+        if start_trim >= end_index:
+            trimmed = audio[0:0]
+        else:
+            trimmed = audio[start_trim:end_index]
 
         if len(trimmed) == 0:
             payload = b""
@@ -620,11 +625,13 @@ class FeaturesTab(QWidget):
             except OSError as e:
                 errors.append(f"{f}: {e}")
                 progress.setValue(idx)
-                QApplication.processEvents()
+                if idx % _PROGRESS_EVENTS_STEP == 0 or idx == total_files:
+                    QApplication.processEvents()
                 continue
             groups.setdefault(sig, []).append(f)
             progress.setValue(idx)
-            QApplication.processEvents()
+            if idx % _PROGRESS_EVENTS_STEP == 0 or idx == total_files:
+                QApplication.processEvents()
 
         progress.close()
 
@@ -677,14 +684,15 @@ class FeaturesTab(QWidget):
                 art_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 art_label.setStyleSheet(
                     "font-size: 12px; color: #5a6b85; border: 1px solid #c3d5ee; "
-                    "border-radius: 6px; min-width: 130px; min-height: 130px; padding: 4px;"
+                    f"border-radius: 6px; min-width: {_ALBUM_ART_SIZE}px; "
+                    f"min-height: {_ALBUM_ART_SIZE}px; padding: 4px;"
                 )
                 pixmap = self._extract_album_art_pixmap(p)
                 if pixmap is not None:
                     art_label.setPixmap(
                         pixmap.scaled(
-                            130,
-                            130,
+                            _ALBUM_ART_SIZE,
+                            _ALBUM_ART_SIZE,
                             Qt.AspectRatioMode.KeepAspectRatio,
                             Qt.TransformationMode.SmoothTransformation,
                         )
