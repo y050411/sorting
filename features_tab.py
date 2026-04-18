@@ -1,11 +1,12 @@
 import os
 import re
+import hashlib
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QCheckBox, QMessageBox, QRadioButton, QButtonGroup,
-    QFrame, QInputDialog, QDialog, QTextEdit, QDialogButtonBox,
+    QFrame, QInputDialog, QDialog, QTextEdit, QDialogButtonBox, QScrollArea,
 )
 from PyQt6.QtCore import Qt
 
@@ -42,6 +43,8 @@ _WB_AFTER  = r"(?![א-תA-Za-z\d])"
 # Maximum number of items shown in a truncated message box list
 # (prevents the dialog from becoming too tall to be usable).
 _MAX_MSG_ITEMS = 20
+_DUP_SIGNATURE_DLG_SIZE = (860, 560)
+_HASH_CHUNK_SIZE = 1024 * 1024
 
 # ---------------------------------------------------------------------------
 # Styles
@@ -88,6 +91,9 @@ class FeaturesTab(QWidget):
         )
         title.setAlignment(Qt.AlignmentFlag.AlignRight)
         root.addWidget(title)
+
+        cards_row = QHBoxLayout()
+        cards_row.setSpacing(14)
 
         # ── Card ─────────────────────────────────────────────────────────
         card = QFrame()
@@ -247,7 +253,35 @@ class FeaturesTab(QWidget):
         exec_row.addWidget(self._exec_btn)
         cl.addLayout(exec_row)
 
-        root.addWidget(card)
+        cards_row.addWidget(card, 2)
+
+        tools_card = QFrame()
+        tools_card.setStyleSheet("""
+            QFrame {
+                background: #f0f5fb;
+                border: 1.5px solid #c3d5ee;
+                border-radius: 12px;
+            }
+        """)
+        tl = QVBoxLayout(tools_card)
+        tl.setContentsMargins(20, 18, 20, 18)
+        tl.setSpacing(10)
+
+        tools_label = QLabel("כלים נוספים")
+        tools_label.setStyleSheet(
+            "font-size: 15px; font-weight: 700; color: #2c4a6e; border: none;"
+        )
+        tl.addWidget(tools_label)
+
+        self._dup_signature_btn = QPushButton("מחיקת כפילויות לפי חתימה")
+        self._dup_signature_btn.setStyleSheet(_BTN_PRIMARY)
+        self._dup_signature_btn.clicked.connect(self._delete_duplicates_by_signature)
+        tl.addWidget(self._dup_signature_btn)
+        tl.addStretch()
+
+        cards_row.addWidget(tools_card, 1)
+
+        root.addLayout(cards_row)
         root.addStretch()
 
     # =========================================================================
@@ -400,7 +434,22 @@ class FeaturesTab(QWidget):
         # First pass: collect artists per file
         file_artists: dict[Path, list[str]] = {}
         for f in files:
-            artists = self._get_artists_in_filename(f)
+            artists: list[str] = []
+            seen: set[str] = set()
+            for artist in self._read_metadata_artists(f):
+                if not artist:
+                    continue
+                artist_lower = artist.lower()
+                if artist_lower in seen:
+                    continue
+                artist_pat = self._make_artist_pattern(artist_lower)
+                pattern = re.compile(
+                    _WB_BEFORE + artist_pat + _WB_AFTER,
+                    re.IGNORECASE,
+                )
+                if pattern.search(f.stem):
+                    artists.append(artist)
+                    seen.add(artist_lower)
             if artists:
                 file_artists[f] = artists
 
@@ -434,6 +483,114 @@ class FeaturesTab(QWidget):
             if new_name != f.name:
                 pairs.append((f, f.parent / new_name))
         return pairs, skipped_empty
+
+    @staticmethod
+    def _sha256_file(path: Path) -> str:
+        hasher = hashlib.sha256()
+        with path.open("rb") as fh:
+            for chunk in iter(lambda: fh.read(_HASH_CHUNK_SIZE), b""):
+                hasher.update(chunk)
+        return hasher.hexdigest()
+
+    def _list_audio_files_recursive(self, folder: str) -> list[Path]:
+        result: list[Path] = []
+        for dirpath, _, filenames in os.walk(folder):
+            for fname in filenames:
+                p = Path(dirpath) / fname
+                if p.suffix.lower() in AUDIO_EXTENSIONS:
+                    result.append(p)
+        return result
+
+    def _delete_duplicates_by_signature(self) -> None:
+        folder = self._get_folder()
+        if not folder or not os.path.isdir(folder):
+            QMessageBox.warning(self, "שגיאה", "יש לבחור תיקייה תחילה.")
+            return
+
+        files = self._list_audio_files_recursive(folder)
+        if not files:
+            QMessageBox.information(self, "אין קבצים", "לא נמצאו קבצי שמע בתיקייה.")
+            return
+
+        groups: dict[str, list[Path]] = {}
+        errors: list[str] = []
+        for f in files:
+            try:
+                sig = self._sha256_file(f)
+            except OSError as e:
+                errors.append(f"{f}: {e}")
+                continue
+            groups.setdefault(sig, []).append(f)
+
+        duplicates = [sorted(paths, key=lambda p: p.as_posix()) for paths in groups.values() if len(paths) > 1]
+        duplicates.sort(key=lambda paths: (-len(paths), paths[0].as_posix()))
+        if not duplicates:
+            msg = "לא נמצאו כפילויות לפי חתימה."
+            if errors:
+                msg += "\n\nשגיאות קריאה:\n" + "\n".join(errors[:_MAX_MSG_ITEMS])
+            QMessageBox.information(self, "כפילויות", msg)
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("מחיקת כפילויות לפי חתימה")
+        dlg.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        dlg.resize(*_DUP_SIGNATURE_DLG_SIZE)
+        layout = QVBoxLayout(dlg)
+        layout.addWidget(QLabel("סמן את העותקים למחיקה (נתיב מלא):"))
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setSpacing(10)
+
+        checkboxes: list[tuple[QCheckBox, Path]] = []
+        for idx, paths in enumerate(duplicates, start=1):
+            group_label = QLabel(f"קבוצה {idx} ({len(paths)} עותקים זהים):")
+            group_label.setStyleSheet("font-weight: 700; color: #2c4a6e;")
+            container_layout.addWidget(group_label)
+            for p in paths:
+                cb = QCheckBox(str(p))
+                cb.setStyleSheet(_CB_STYLE)
+                container_layout.addWidget(cb)
+                checkboxes.append((cb, p))
+
+        container_layout.addStretch()
+        scroll.setWidget(container)
+        layout.addWidget(scroll)
+
+        btn_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        btn_box.button(QDialogButtonBox.StandardButton.Ok).setText("מחק מסומנים")
+        btn_box.button(QDialogButtonBox.StandardButton.Cancel).setText("ביטול")
+        btn_box.accepted.connect(dlg.accept)
+        btn_box.rejected.connect(dlg.reject)
+        layout.addWidget(btn_box)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        to_delete = [p for cb, p in checkboxes if cb.isChecked()]
+        if not to_delete:
+            QMessageBox.information(self, "כפילויות", "לא נבחרו קבצים למחיקה.")
+            return
+
+        deleted = 0
+        delete_errors: list[str] = []
+        for p in to_delete:
+            try:
+                p.unlink()
+                deleted += 1
+            except OSError as e:
+                delete_errors.append(f"{p}: {e}")
+
+        summary = f"המחיקה הושלמה: נמחקו {deleted} מתוך {len(to_delete)} קבצים."
+        if delete_errors:
+            summary += "\n\nשגיאות מחיקה:\n" + "\n".join(delete_errors[:_MAX_MSG_ITEMS])
+        if errors:
+            summary += "\n\nשגיאות קריאה:\n" + "\n".join(errors[:_MAX_MSG_ITEMS])
+        QMessageBox.information(self, "מחיקת כפילויות", summary)
 
     # =========================================================================
     # Option 2 – Add artist name
