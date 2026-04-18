@@ -1,11 +1,13 @@
 import os
 import re
+import hashlib
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QCheckBox, QMessageBox, QRadioButton, QButtonGroup,
     QFrame, QInputDialog, QDialog, QTextEdit, QDialogButtonBox,
+    QScrollArea,
 )
 from PyQt6.QtCore import Qt
 
@@ -42,6 +44,7 @@ _WB_AFTER  = r"(?![א-תA-Za-z\d])"
 # Maximum number of items shown in a truncated message box list
 # (prevents the dialog from becoming too tall to be usable).
 _MAX_MSG_ITEMS = 20
+_HASH_CHUNK_SIZE = 1024 * 1024
 
 # ---------------------------------------------------------------------------
 # Styles
@@ -89,7 +92,11 @@ class FeaturesTab(QWidget):
         title.setAlignment(Qt.AlignmentFlag.AlignRight)
         root.addWidget(title)
 
-        # ── Card ─────────────────────────────────────────────────────────
+        # ── Cards row (right: existing card, left: extra tools) ─────────
+        cards_row = QHBoxLayout()
+        cards_row.setSpacing(14)
+
+        # ── Existing card: Name fixes (right side in RTL) ────────────────
         card = QFrame()
         card.setStyleSheet("""
             QFrame {
@@ -247,7 +254,34 @@ class FeaturesTab(QWidget):
         exec_row.addWidget(self._exec_btn)
         cl.addLayout(exec_row)
 
-        root.addWidget(card)
+        # ── New card: Extra tools (left side) ────────────────────────────
+        tools_card = QFrame()
+        tools_card.setStyleSheet("""
+            QFrame {
+                background: #f0f5fb;
+                border: 1.5px solid #c3d5ee;
+                border-radius: 12px;
+            }
+        """)
+        tl = QVBoxLayout(tools_card)
+        tl.setContentsMargins(20, 18, 20, 18)
+        tl.setSpacing(10)
+
+        tools_label = QLabel("כלים נוספים")
+        tools_label.setStyleSheet(
+            "font-size: 15px; font-weight: 700; color: #2c4a6e; border: none;"
+        )
+        tl.addWidget(tools_label)
+
+        self._btn_remove_duplicates = QPushButton("מחיקת כפילויות לפי חתימה")
+        self._btn_remove_duplicates.setStyleSheet(_BTN_PRIMARY)
+        self._btn_remove_duplicates.clicked.connect(self._remove_duplicates_by_signature)
+        tl.addWidget(self._btn_remove_duplicates)
+        tl.addStretch()
+
+        cards_row.addWidget(card, 2)
+        cards_row.addWidget(tools_card, 1)
+        root.addLayout(cards_row)
         root.addStretch()
 
     # =========================================================================
@@ -680,11 +714,146 @@ class FeaturesTab(QWidget):
         return pairs
 
     # =========================================================================
+    # Extra tool – Remove duplicates by file signature
+    # =========================================================================
+
+    @staticmethod
+    def _file_hash(path: Path) -> str:
+        hasher = hashlib.sha256()
+        with path.open("rb") as fh:
+            for chunk in iter(lambda: fh.read(_HASH_CHUNK_SIZE), b""):
+                hasher.update(chunk)
+        return hasher.hexdigest()
+
+    def _collect_duplicate_groups(self, folder: str) -> tuple[list[list[Path]], list[str]]:
+        signatures: dict[str, list[Path]] = {}
+        hash_errors: list[str] = []
+        for dirpath, _, filenames in os.walk(folder):
+            for fname in filenames:
+                path = Path(dirpath) / fname
+                if path.suffix.lower() not in AUDIO_EXTENSIONS:
+                    continue
+                try:
+                    sig = self._file_hash(path)
+                except OSError as e:
+                    hash_errors.append(f"{path}: {e}")
+                    continue
+                signatures.setdefault(sig, []).append(path)
+        return [group for group in signatures.values() if len(group) >= 2], hash_errors
+
+    def _pick_duplicates_to_delete(self, groups: list[list[Path]]) -> list[Path] | None:
+        dlg = QDialog(self)
+        dlg.setWindowTitle("מחיקת כפילויות לפי חתימה")
+        dlg.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        dlg.resize(900, 560)
+        layout = QVBoxLayout(dlg)
+
+        lbl = QLabel(
+            "זוהו קבוצות כפילויות לפי חתימה.\nסמן את הקבצים שברצונך למחוק (נתיב מלא):"
+        )
+        lbl.setStyleSheet("font-size: 14px; font-weight: 700;")
+        layout.addWidget(lbl)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setSpacing(8)
+
+        checkbox_paths: dict[QCheckBox, Path] = {}
+        for idx, group in enumerate(groups, start=1):
+            title = QLabel(f"קבוצה {idx} ({len(group)} קבצים)")
+            title.setStyleSheet("font-size: 13px; font-weight: 700; color: #2c4a6e;")
+            container_layout.addWidget(title)
+            for path in group:
+                cb = QCheckBox(str(path.resolve()))
+                cb.setStyleSheet(_CB_STYLE)
+                checkbox_paths[cb] = path
+                container_layout.addWidget(cb)
+            sep = QFrame()
+            sep.setFrameShape(QFrame.Shape.HLine)
+            sep.setStyleSheet("border: none; background: #d7e3f4; max-height: 1px;")
+            container_layout.addWidget(sep)
+
+        container_layout.addStretch()
+        scroll.setWidget(container)
+        layout.addWidget(scroll)
+
+        btn_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        btn_box.button(QDialogButtonBox.StandardButton.Ok).setText("מחק מסומנים")
+        btn_box.button(QDialogButtonBox.StandardButton.Cancel).setText("בטל")
+        btn_box.accepted.connect(dlg.accept)
+        btn_box.rejected.connect(dlg.reject)
+        layout.addWidget(btn_box)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return None
+        return [path for cb, path in checkbox_paths.items() if cb.isChecked()]
+
+    def _remove_duplicates_by_signature(self) -> None:
+        folder = self._get_folder()
+        if not folder or not os.path.isdir(folder):
+            QMessageBox.warning(self, "שגיאה", "יש לבחור תיקייה תחילה.")
+            return
+
+        groups, hash_errors = self._collect_duplicate_groups(folder)
+        if hash_errors:
+            QMessageBox.warning(
+                self,
+                "שגיאות בקריאת קבצים",
+                "בחלק מהקבצים לא ניתן היה לחשב חתימה:\n"
+                + "\n".join(hash_errors[:_MAX_MSG_ITEMS]),
+            )
+        if not groups:
+            QMessageBox.information(self, "אין כפילויות", "לא נמצאו כפילויות לפי חתימה.")
+            return
+
+        selected = self._pick_duplicates_to_delete(groups)
+        if selected is None:
+            return
+        if not selected:
+            QMessageBox.information(self, "לא נבחר למחיקה", "לא סומנו קבצים למחיקה.")
+            return
+
+        confirm = QMessageBox.question(
+            self,
+            "אישור מחיקה",
+            f"למחוק {len(selected)} קבצים מסומנים?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        deleted = 0
+        errors: list[str] = []
+        for path in selected:
+            try:
+                path.unlink()
+                deleted += 1
+            except OSError as e:
+                errors.append(f"{path}: {e}")
+
+        msg = f"המחיקה הושלמה: {deleted} קבצים נמחקו."
+        if errors:
+            QMessageBox.warning(
+                self,
+                "הושלם עם שגיאות",
+                msg + "\n\nשגיאות:\n" + "\n".join(errors[:_MAX_MSG_ITEMS]),
+            )
+        else:
+            QMessageBox.information(self, "הושלם", msg)
+
+    # =========================================================================
     # Rename helper
     # =========================================================================
 
     @staticmethod
-    def _do_rename(pairs: list[tuple[Path, Path]]) -> tuple[int, list[str]]:
+    def _do_rename(
+        pairs: list[tuple[Path, Path]],
+        clear_artist_metadata: bool = False,
+    ) -> tuple[int, list[str]]:
         if not pairs:
             return 0, []
 
@@ -723,6 +892,14 @@ class FeaturesTab(QWidget):
                     continue
                 src.rename(dst)
                 done += 1
+                if clear_artist_metadata and MutagenFile is not None:
+                    try:
+                        audio = MutagenFile(str(dst), easy=True)
+                        if audio is not None and "artist" in audio:
+                            del audio["artist"]
+                            audio.save()
+                    except Exception as e:
+                        errors.append(f"{dst.name}: שגיאה בעדכון המטא-דאטה (artist) ({e})")
             except OSError as e:
                 errors.append(f"{src.name}: {e}")
         return done, errors
@@ -777,7 +954,7 @@ class FeaturesTab(QWidget):
         all_errors: list[str] = []
         all_skipped_empty: list[str] = []
 
-        def _step(apply_fn) -> None:
+        def _step(apply_fn, clear_artist_metadata: bool = False) -> None:
             nonlocal total_done
             current = self._list_audio_files(folder)
             result  = apply_fn(current)
@@ -787,12 +964,15 @@ class FeaturesTab(QWidget):
                 all_skipped_empty.extend(skipped)
             else:
                 pairs = result
-            done, errs = self._do_rename(pairs)
+            done, errs = self._do_rename(
+                pairs,
+                clear_artist_metadata=clear_artist_metadata,
+            )
             total_done += done
             all_errors.extend(errs)
 
         # Execution order: 1 → 2 → 3 → 4 → 5 → 6
-        if self._cb1.isChecked(): _step(self._apply_remove_artist)
+        if self._cb1.isChecked(): _step(self._apply_remove_artist, clear_artist_metadata=True)
         if self._cb2.isChecked(): _step(self._apply_add_artist)
         if self._cb3.isChecked(): _step(self._apply_delete_chars)
         if self._cb4.isChecked(): _step(self._apply_delete_words)
