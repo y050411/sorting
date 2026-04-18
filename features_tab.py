@@ -56,6 +56,9 @@ _DUP_SIGNATURE_DLG_SIZE = (860, 560)
 _HASH_CHUNK_SIZE = 1024 * 1024
 _ALBUM_ART_SIZE = 130
 _PROGRESS_EVENTS_STEP = 25
+_SILENCE_DBFS_FOR_SILENT = -50
+_SILENCE_DBFS_OFFSET = 16
+_SILENCE_CHUNK_MS = 10
 
 # ---------------------------------------------------------------------------
 # Styles
@@ -516,9 +519,21 @@ class FeaturesTab(QWidget):
         if len(audio) == 0:
             return hashlib.sha256(b"").hexdigest()
 
-        silence_thresh = -50 if audio.dBFS == float("-inf") else audio.dBFS - 16
-        start_trim = detect_leading_silence(audio, silence_thresh=silence_thresh, chunk_size=10)
-        end_trim = detect_leading_silence(audio.reverse(), silence_thresh=silence_thresh, chunk_size=10)
+        silence_thresh = (
+            _SILENCE_DBFS_FOR_SILENT
+            if audio.dBFS == float("-inf")
+            else audio.dBFS - _SILENCE_DBFS_OFFSET
+        )
+        start_trim = detect_leading_silence(
+            audio,
+            silence_thresh=silence_thresh,
+            chunk_size=_SILENCE_CHUNK_MS,
+        )
+        end_trim = detect_leading_silence(
+            audio.reverse(),
+            silence_thresh=silence_thresh,
+            chunk_size=_SILENCE_CHUNK_MS,
+        )
         end_index = len(audio) - end_trim
         if start_trim >= end_index:
             trimmed = audio[0:0]
@@ -625,12 +640,18 @@ class FeaturesTab(QWidget):
             except OSError as e:
                 errors.append(f"{f}: {e}")
                 progress.setValue(idx)
-                if idx % _PROGRESS_EVENTS_STEP == 0 or idx == total_files:
+                should_process = (idx % _PROGRESS_EVENTS_STEP == 0) or (
+                    idx == total_files and idx % _PROGRESS_EVENTS_STEP != 0
+                )
+                if should_process:
                     QApplication.processEvents()
                 continue
             groups.setdefault(sig, []).append(f)
             progress.setValue(idx)
-            if idx % _PROGRESS_EVENTS_STEP == 0 or idx == total_files:
+            should_process = (idx % _PROGRESS_EVENTS_STEP == 0) or (
+                idx == total_files and idx % _PROGRESS_EVENTS_STEP != 0
+            )
+            if should_process:
                 QApplication.processEvents()
 
         progress.close()
@@ -671,6 +692,7 @@ class FeaturesTab(QWidget):
             group_radio = QButtonGroup(dlg)
             group_radio.setExclusive(True)
             radio_path_pairs: list[tuple[QRadioButton, Path]] = []
+            # ברירת המחדל לשמירה: שם קובץ קצר ביותר (ואז שם/נתיב לקביעות).
             keep_path = min(paths, key=lambda p: (len(p.name), p.name.casefold(), p.as_posix()))
 
             for p in paths:
