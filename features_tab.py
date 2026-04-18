@@ -44,6 +44,7 @@ _WB_AFTER  = r"(?![א-תA-Za-z\d])"
 # Maximum number of items shown in a truncated message box list
 # (prevents the dialog from becoming too tall to be usable).
 _MAX_MSG_ITEMS = 20
+_HASH_CHUNK_SIZE = 1024 * 1024
 
 # ---------------------------------------------------------------------------
 # Styles
@@ -720,12 +721,13 @@ class FeaturesTab(QWidget):
     def _file_hash(path: Path) -> str:
         hasher = hashlib.sha256()
         with path.open("rb") as fh:
-            for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            for chunk in iter(lambda: fh.read(_HASH_CHUNK_SIZE), b""):
                 hasher.update(chunk)
         return hasher.hexdigest()
 
-    def _collect_duplicate_groups(self, folder: str) -> list[list[Path]]:
+    def _collect_duplicate_groups(self, folder: str) -> tuple[list[list[Path]], list[str]]:
         signatures: dict[str, list[Path]] = {}
+        hash_errors: list[str] = []
         for dirpath, _, filenames in os.walk(folder):
             for fname in filenames:
                 path = Path(dirpath) / fname
@@ -733,10 +735,11 @@ class FeaturesTab(QWidget):
                     continue
                 try:
                     sig = self._file_hash(path)
-                except OSError:
+                except OSError as e:
+                    hash_errors.append(f"{path}: {e}")
                     continue
                 signatures.setdefault(sig, []).append(path)
-        return [group for group in signatures.values() if len(group) >= 2]
+        return [group for group in signatures.values() if len(group) >= 2], hash_errors
 
     def _pick_duplicates_to_delete(self, groups: list[list[Path]]) -> list[Path] | None:
         dlg = QDialog(self)
@@ -757,7 +760,7 @@ class FeaturesTab(QWidget):
         container_layout = QVBoxLayout(container)
         container_layout.setSpacing(8)
 
-        checkboxes: list[QCheckBox] = []
+        checkbox_paths: dict[QCheckBox, Path] = {}
         for idx, group in enumerate(groups, start=1):
             title = QLabel(f"קבוצה {idx} ({len(group)} קבצים)")
             title.setStyleSheet("font-size: 13px; font-weight: 700; color: #2c4a6e;")
@@ -765,7 +768,7 @@ class FeaturesTab(QWidget):
             for path in group:
                 cb = QCheckBox(str(path.resolve()))
                 cb.setStyleSheet(_CB_STYLE)
-                checkboxes.append(cb)
+                checkbox_paths[cb] = path
                 container_layout.addWidget(cb)
             sep = QFrame()
             sep.setFrameShape(QFrame.Shape.HLine)
@@ -787,7 +790,7 @@ class FeaturesTab(QWidget):
 
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return None
-        return [Path(cb.text()) for cb in checkboxes if cb.isChecked()]
+        return [path for cb, path in checkbox_paths.items() if cb.isChecked()]
 
     def _remove_duplicates_by_signature(self) -> None:
         folder = self._get_folder()
@@ -795,7 +798,14 @@ class FeaturesTab(QWidget):
             QMessageBox.warning(self, "שגיאה", "יש לבחור תיקייה תחילה.")
             return
 
-        groups = self._collect_duplicate_groups(folder)
+        groups, hash_errors = self._collect_duplicate_groups(folder)
+        if hash_errors:
+            QMessageBox.warning(
+                self,
+                "שגיאות בקריאת קבצים",
+                "בחלק מהקבצים לא ניתן היה לחשב חתימה:\n"
+                + "\n".join(hash_errors[:_MAX_MSG_ITEMS]),
+            )
         if not groups:
             QMessageBox.information(self, "אין כפילויות", "לא נמצאו כפילויות לפי חתימה.")
             return
@@ -889,7 +899,7 @@ class FeaturesTab(QWidget):
                             del audio["artist"]
                             audio.save()
                     except Exception as e:
-                        errors.append(f"{dst.name}: שגיאת עדכון artist במטא-דאטה ({e})")
+                        errors.append(f"{dst.name}: שגיאה בעדכון המטא-דאטה (artist) ({e})")
             except OSError as e:
                 errors.append(f"{src.name}: {e}")
         return done, errors
