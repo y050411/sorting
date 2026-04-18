@@ -43,6 +43,7 @@ _WB_AFTER  = r"(?![א-תA-Za-z\d])"
 # Maximum number of items shown in a truncated message box list
 # (prevents the dialog from becoming too tall to be usable).
 _MAX_MSG_ITEMS = 20
+_DUP_SIGNATURE_DLG_SIZE = (860, 560)
 
 # ---------------------------------------------------------------------------
 # Styles
@@ -520,7 +521,8 @@ class FeaturesTab(QWidget):
                 continue
             groups.setdefault(sig, []).append(f)
 
-        duplicates = [paths for paths in groups.values() if len(paths) > 1]
+        duplicates = [sorted(paths, key=lambda p: p.as_posix()) for paths in groups.values() if len(paths) > 1]
+        duplicates.sort(key=lambda paths: (-len(paths), str(paths[0])))
         if not duplicates:
             msg = "לא נמצאו כפילויות לפי חתימה."
             if errors:
@@ -531,7 +533,7 @@ class FeaturesTab(QWidget):
         dlg = QDialog(self)
         dlg.setWindowTitle("מחיקת כפילויות לפי חתימה")
         dlg.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
-        dlg.resize(860, 560)
+        dlg.resize(*_DUP_SIGNATURE_DLG_SIZE)
         layout = QVBoxLayout(dlg)
         layout.addWidget(QLabel("סמן את העותקים למחיקה (נתיב מלא):"))
 
@@ -582,7 +584,7 @@ class FeaturesTab(QWidget):
             except OSError as e:
                 delete_errors.append(f"{p}: {e}")
 
-        summary = f"המחיקה הושלמה: נמחקו {deleted} קבצים."
+        summary = f"המחיקה הושלמה: נמחקו {deleted} מתוך {len(to_delete)} קבצים."
         if delete_errors:
             summary += "\n\nשגיאות מחיקה:\n" + "\n".join(delete_errors[:_MAX_MSG_ITEMS])
         if errors:
