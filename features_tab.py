@@ -90,10 +90,11 @@ _LBL_SMALL = "font-size: 13px; color: #444;"
 # ---------------------------------------------------------------------------
 
 class FeaturesTab(QWidget):
-    def __init__(self, artists_tab, parent: QWidget | None = None):
+    def __init__(self, artists_tab, parent: QWidget | None = None, undo_manager=None):
         super().__init__(parent)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         self._artists_tab = artists_tab
+        self._undo_manager = undo_manager
         self._metadata_cache: dict[Path, list[str]] = {}
 
         root = QVBoxLayout(self)
@@ -1182,14 +1183,28 @@ class FeaturesTab(QWidget):
             QMessageBox.information(self, "כפילויות", "לא נבחרו קבצים למחיקה.")
             return
 
+        # Begin undo batch for duplicate deletion
+        if self._undo_manager:
+            self._undo_manager.begin_batch(f"מחיקת כפילויות — {len(to_delete)} קבצים")
+
         deleted = 0
         delete_errors: list[str] = []
         for p in to_delete:
             try:
-                p.unlink()
-                deleted += 1
+                if self._undo_manager:
+                    if self._undo_manager.safe_delete(str(p)):
+                        deleted += 1
+                    else:
+                        delete_errors.append(f"{p.name}: לא ניתן להעביר לסל המיחזור")
+                else:
+                    p.unlink()
+                    deleted += 1
             except OSError as e:
                 delete_errors.append(f"{p}: {e}")
+
+        # End undo batch
+        if self._undo_manager:
+            self._undo_manager.end_batch()
 
         summary = f"המחיקה הושלמה: נמחקו {deleted} מתוך {len(to_delete)} קבצים."
         if delete_errors:
@@ -1253,6 +1268,10 @@ class FeaturesTab(QWidget):
         if confirm != QMessageBox.StandardButton.Yes:
             return
 
+        # Begin undo batch
+        if self._undo_manager:
+            self._undo_manager.begin_batch(f"העברת {len(files)} קבצים לתיקיית יעד")
+
         moved = 0
         move_errors: list[str] = []
         for f in files:
@@ -1267,9 +1286,15 @@ class FeaturesTab(QWidget):
                     counter += 1
             try:
                 shutil.move(str(f), str(dest))
+                if self._undo_manager:
+                    self._undo_manager.record_move(str(f), str(dest))
                 moved += 1
             except OSError as e:
                 move_errors.append(f"{f.name}: {e}")
+
+        # End undo batch
+        if self._undo_manager:
+            self._undo_manager.end_batch()
 
         summary = f"הושלם: הועברו {moved} מתוך {len(files)} קבצים."
         if move_errors:
@@ -1307,6 +1332,10 @@ class FeaturesTab(QWidget):
         if confirm != QMessageBox.StandardButton.Yes:
             return
 
+        # Begin undo batch
+        if self._undo_manager:
+            self._undo_manager.begin_batch(f"מחיקת {len(empty_dirs)} תיקיות ריקות")
+
         total_deleted = 0
         all_errors: list[str] = []
         rounds = 0
@@ -1317,12 +1346,18 @@ class FeaturesTab(QWidget):
             for d in sorted(empty_dirs, key=len, reverse=True):
                 try:
                     os.rmdir(d)
+                    if self._undo_manager:
+                        self._undo_manager.record_rmdir(d)
                     total_deleted += 1
                 except OSError as e:
                     all_errors.append(f"{d}: {e}")
 
             # Re-scan for newly-empty parent directories
             empty_dirs = self._scan_empty_dirs(folder, include_sub)
+
+        # End undo batch
+        if self._undo_manager:
+            self._undo_manager.end_batch()
 
         summary = f"הושלם: נמחקו {total_deleted} תיקיות ריקות"
         if rounds > 1:
@@ -1441,6 +1476,10 @@ class FeaturesTab(QWidget):
         if reply != QMessageBox.StandardButton.Yes:
             return
 
+        # Begin undo batch
+        if self._undo_manager:
+            self._undo_manager.begin_batch(f"המרת {len(files)} קבצים — {src_fmt_text} → {tgt_fmt_text}")
+
         # Progress dialog
         progress = QProgressDialog("מתחיל המרה...", "ביטול", 0, len(files), self)
         progress.setWindowTitle("המרת קבצי שמע")
@@ -1492,14 +1531,28 @@ class FeaturesTab(QWidget):
 
                 if delete_originals:
                     try:
-                        src_path.unlink()
+                        if self._undo_manager:
+                            self._undo_manager.safe_delete(str(src_path))
+                        else:
+                            src_path.unlink()
                     except OSError as e:
                         errors.append(f"מחיקת מקור נכשלה – {src_path.name}: {e}")
+
+                # Record converted file in undo
+                if self._undo_manager:
+                    self._undo_manager.record_convert(
+                        str(src_path), str(tgt_path),
+                        source_deleted=delete_originals,
+                    )
 
             except Exception as e:
                 errors.append(f"{src_path.name}: {e}")
 
         progress.setValue(len(files))
+
+        # End undo batch
+        if self._undo_manager:
+            self._undo_manager.end_batch()
 
         # Summary
         summary = f"הושלם: {converted} קבצים הומרו בהצלחה."
@@ -2061,8 +2114,7 @@ class FeaturesTab(QWidget):
     # Rename helper
     # =========================================================================
 
-    @staticmethod
-    def _do_rename(pairs: list[tuple[Path, Path]]) -> tuple[int, list[str]]:
+    def _do_rename(self, pairs: list[tuple[Path, Path]]) -> tuple[int, list[str]]:
         if not pairs:
             return 0, []
 
@@ -2100,6 +2152,8 @@ class FeaturesTab(QWidget):
                     errors.append(f"קיים כבר: {dst.name}")
                     continue
                 src.rename(dst)
+                if self._undo_manager:
+                    self._undo_manager.record_rename(str(src), str(dst))
                 done += 1
             except OSError as e:
                 errors.append(f"{src.name}: {e}")
@@ -2155,6 +2209,10 @@ class FeaturesTab(QWidget):
         all_errors: list[str] = []
         all_skipped_empty: list[str] = []
 
+        # Begin undo batch for all rename operations
+        if self._undo_manager:
+            self._undo_manager.begin_batch(f"תיקון שמות — {', '.join(ops)}")
+
         def _step(apply_fn) -> None:
             nonlocal total_done
             current = self._list_audio_files(folder)
@@ -2176,6 +2234,10 @@ class FeaturesTab(QWidget):
         if self._cb4.isChecked(): _step(self._apply_delete_words)
         if self._cb5.isChecked(): _step(self._apply_remove_extra)
         if self._cb6.isChecked(): _step(self._apply_metadata_fix)
+
+        # End undo batch
+        if self._undo_manager:
+            self._undo_manager.end_batch()
 
         msg = f"הושלם: {total_done} קבצים שונו."
         if all_skipped_empty:
