@@ -373,7 +373,7 @@ class MainWindow(QMainWindow):
         self.reset_settings_btn.clicked.connect(self._reset_settings)
         corner_layout.addWidget(self.reset_settings_btn)
 
-        tabs.setCornerWidget(corner_widget, Qt.Corner.TopLeftCorner)
+        tabs.setCornerWidget(corner_widget, Qt.Corner.TopRightCorner)
 
         self._set_loading_status("מבנה הלשוניות הוכן", 45)
 
