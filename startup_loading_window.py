@@ -254,12 +254,15 @@ class StartupLoadingDialog(QDialog):
             return None
 
 
-if __name__ == "__main__":
-    status_file = sys.argv[1] if len(sys.argv) > 1 else ""
-    ready_file = sys.argv[2] if len(sys.argv) > 2 else ""
-
+def run_loading_window(status_file: str, ready_file: str):
     app = QApplication(sys.argv)
     app.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
     dlg = StartupLoadingDialog(status_file, ready_file)
     dlg.show()
     sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    status_file = sys.argv[1] if len(sys.argv) > 1 else ""
+    ready_file = sys.argv[2] if len(sys.argv) > 2 else ""
+    run_loading_window(status_file, ready_file)
