@@ -373,6 +373,13 @@ class MainWindow(QMainWindow):
         self.reset_settings_btn.clicked.connect(self._reset_settings)
         corner_layout.addWidget(self.reset_settings_btn)
 
+        # Store button metadata for responsive text (emoji-only on small screens)
+        self._corner_buttons_meta = [
+            (self.undo_btn, "↩ ביטול פעולות", "↩"),
+            (self.save_settings_btn, "💾 שמור הגדרות", "💾"),
+            (self.reset_settings_btn, "🔄 איפוס הגדרות", "🔄"),
+        ]
+
         tabs.setCornerWidget(corner_widget, Qt.Corner.TopRightCorner)
 
         self._set_loading_status("מבנה הלשוניות הוכן", 45)
@@ -410,6 +417,18 @@ class MainWindow(QMainWindow):
         self._apply_saved_settings()
 
         self._set_loading_status("הטעינה הושלמה", 100)
+
+    # ── Responsive corner buttons ─────────────────────────────────────
+    _COMPACT_WIDTH_THRESHOLD = 1050
+    _corner_buttons_compact = False
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        compact = self.width() < self._COMPACT_WIDTH_THRESHOLD
+        if compact != self._corner_buttons_compact:
+            self._corner_buttons_compact = compact
+            for btn, full_text, emoji_text in self._corner_buttons_meta:
+                btn.setText(emoji_text if compact else full_text)
 
     # ── Undo dialog ────────────────────────────────────────────────────
     def _open_undo_dialog(self):
