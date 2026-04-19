@@ -1070,7 +1070,7 @@ class FeaturesTab(QWidget):
                 stem = dest.stem
                 suffix = dest.suffix
                 counter = 1
-                while dest.exists():
+                while dest.exists() and counter < 10000:
                     dest = Path(target) / f"{stem} ({counter}){suffix}"
                     counter += 1
             try:
@@ -1102,7 +1102,8 @@ class FeaturesTab(QWidget):
         empty_dirs: list[str] = []
         if include_sub:
             # Walk bottom-up so nested empty dirs are found after their children are removed
-            for dirpath, dirnames, filenames in os.walk(folder, topdown=False):
+            for dirpath, _, _ in os.walk(folder, topdown=False):
+                # Skip the root source folder itself
                 if dirpath == folder:
                     continue
                 if not os.listdir(dirpath):
