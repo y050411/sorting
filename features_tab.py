@@ -863,6 +863,18 @@ class FeaturesTab(QWidget):
             except Exception:
                 image_data = None
 
+        # OGG / OPUS – metadata_block_picture (base64-encoded FLAC Picture)
+        if image_data is None and tags is not None and hasattr(tags, "get"):
+            try:
+                import base64 as _b64
+                from mutagen.flac import Picture as _Picture
+                mbp = tags.get("metadata_block_picture")
+                if mbp:
+                    pic = _Picture(_b64.b64decode(mbp[0]))
+                    image_data = pic.data
+            except Exception:
+                pass
+
         if image_data is None and tags is not None and hasattr(tags, "get"):
             try:
                 covr = tags.get("covr")
@@ -1560,6 +1572,19 @@ class FeaturesTab(QWidget):
             except Exception:
                 pass
 
+        # OGG / OPUS – metadata_block_picture (base64-encoded FLAC Picture)
+        if tags is not None and hasattr(tags, "get"):
+            try:
+                import base64 as _b64
+                from mutagen.flac import Picture as _Picture
+                mbp = tags.get("metadata_block_picture")
+                if mbp:
+                    pic = _Picture(_b64.b64decode(mbp[0]))
+                    if pic.data:
+                        return bytes(pic.data), (pic.mime or "image/jpeg")
+            except Exception:
+                pass
+
         # MP4 / M4A cover art
         if tags is not None and hasattr(tags, "get"):
             try:
@@ -1577,9 +1602,13 @@ class FeaturesTab(QWidget):
 
     @staticmethod
     def _embed_album_art(path: Path, image_data: bytes, mime_type: str) -> None:
-        """Embed album art into an audio file using mutagen."""
+        """Embed album art into an audio file using mutagen.
+
+        Raises ``RuntimeError`` for formats that do not support embedded art
+        (e.g. WAV) so the caller can inform the user.
+        """
         if MutagenFile is None:
-            return
+            raise RuntimeError("ספריית mutagen אינה מותקנת.")
 
         ext = path.suffix.lower()
 
@@ -1597,7 +1626,7 @@ class FeaturesTab(QWidget):
                 desc="Cover",
                 data=image_data,
             ))
-            tags.save(str(path))
+            tags.save(str(path), v2_version=3)
 
         elif ext in (".flac",):
             from mutagen.flac import FLAC, Picture
@@ -1630,6 +1659,8 @@ class FeaturesTab(QWidget):
         elif ext in (".m4a", ".mp4", ".aac"):
             from mutagen.mp4 import MP4, MP4Cover
             audio = MP4(str(path))
+            if audio.tags is None:
+                audio.add_tags()
             fmt = MP4Cover.FORMAT_PNG if "png" in mime_type else MP4Cover.FORMAT_JPEG
             audio.tags["covr"] = [MP4Cover(image_data, imageformat=fmt)]
             audio.save()
@@ -1649,6 +1680,16 @@ class FeaturesTab(QWidget):
                 data=image_data,
             ))
             audio.save()
+
+        elif ext in (".wav",):
+            raise RuntimeError(
+                "פורמט WAV אינו תומך בהטמעת תמונת אלבום."
+            )
+
+        else:
+            raise RuntimeError(
+                f"פורמט {ext} אינו נתמך להטמעת תמונת אלבום."
+            )
 
     # =========================================================================
     # Replace image for a file
@@ -1713,10 +1754,9 @@ class FeaturesTab(QWidget):
             QMessageBox.warning(self, "שגיאה", "הקובץ שנבחר אינו קובץ שמע מוכר.")
             return
 
-        # Read image data – convert to JPEG if not a compatible format
+        # Read image data – convert to JPEG in memory if not a compatible format
         img_ext = image_path.suffix.lower()
         if img_ext not in self._COMPATIBLE_IMAGE_EXTENSIONS:
-            # Auto-convert to JPEG
             try:
                 from PIL import Image as PILImage
             except ImportError:
@@ -1729,44 +1769,45 @@ class FeaturesTab(QWidget):
                 return
 
             try:
+                import io as _io
                 img = PILImage.open(str(image_path))
                 if img.mode in ("RGBA", "P", "LA"):
                     img = img.convert("RGB")
-                converted_path = image_path.with_suffix(".jpg")
-                # Don't overwrite existing file
-                if converted_path.exists():
-                    base = image_path.stem
-                    idx = 1
-                    while converted_path.exists():
-                        converted_path = image_path.parent / f"{base}_converted_{idx}.jpg"
-                        idx += 1
-                img.save(str(converted_path), "JPEG", quality=95)
-                image_path = converted_path
+                buf = _io.BytesIO()
+                img.save(buf, "JPEG", quality=95)
+                image_data = buf.getvalue()
                 img_ext = ".jpg"
-                QMessageBox.information(
-                    self, "המרת תמונה",
-                    f"התמונה הומרה אוטומטית לפורמט JPEG ונשמרה כ:\n{converted_path.name}",
-                )
             except Exception as e:
                 QMessageBox.warning(self, "שגיאת המרת תמונה", f"לא ניתן להמיר את התמונה:\n{e}")
                 return
-
-        try:
-            image_data = image_path.read_bytes()
-        except Exception as e:
-            QMessageBox.warning(self, "שגיאה", f"לא ניתן לקרוא את קובץ התמונה:\n{e}")
-            return
+        else:
+            try:
+                image_data = image_path.read_bytes()
+            except Exception as e:
+                QMessageBox.warning(self, "שגיאה", f"לא ניתן לקרוא את קובץ התמונה:\n{e}")
+                return
 
         mime_type = "image/png" if img_ext == ".png" else "image/jpeg"
 
         try:
             self._embed_album_art(song_path, image_data, mime_type)
-            QMessageBox.information(
-                self, "החלפת תמונה",
-                f"התמונה הוחלפה בהצלחה עבור:\n{song_path.name}",
-            )
         except Exception as e:
             QMessageBox.warning(self, "שגיאה", f"לא ניתן להחליף את התמונה:\n{e}")
+            return
+
+        # Verify the image was actually embedded by reading it back
+        verify_data, _ = self._extract_album_art_raw(song_path)
+        if not verify_data:
+            QMessageBox.warning(
+                self, "שגיאה",
+                f"התמונה לא נשמרה בהצלחה בקובץ:\n{song_path.name}",
+            )
+            return
+
+        QMessageBox.information(
+            self, "החלפת תמונה",
+            f"התמונה הוחלפה בהצלחה עבור:\n{song_path.name}",
+        )
 
     # =========================================================================
     # Option 2 – Add artist name
