@@ -1195,8 +1195,7 @@ class FeaturesTab(QWidget):
                     if self._undo_manager.safe_delete(str(p)):
                         deleted += 1
                     else:
-                        p.unlink()
-                        deleted += 1
+                        delete_errors.append(f"{p.name}: לא ניתן להעביר לסל המיחזור")
                 else:
                     p.unlink()
                     deleted += 1
