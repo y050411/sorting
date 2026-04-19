@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
-from shared import FolderSelector, ScrollableTab, PlaceholderTab, app_data_path
+from shared import FolderSelector, ScrollableTab, PlaceholderTab, app_data_path, load_stylesheet
 from artists_tab import ArtistsTab
 from sorting_tab import SortingTab
 from features_tab import FeaturesTab
@@ -136,6 +136,7 @@ class UndoHistoryDialog(QDialog):
 
     def __init__(self, undo_manager: UndoManager, parent=None):
         super().__init__(parent)
+        self.setObjectName("undoDialog")
         self.setWindowTitle("היסטוריית פעולות — ביטול")
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         self.setMinimumSize(540, 400)
@@ -144,16 +145,16 @@ class UndoHistoryDialog(QDialog):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(10)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(12)
 
         title = QLabel("פעולות שניתן לבטל")
-        title.setStyleSheet("font-size: 18px; font-weight: 800; color: #1c355e;")
+        title.setObjectName("undoTitle")
         layout.addWidget(title)
 
         hint = QLabel("לחץ על 'בטל' ליד כל פעולה כדי לבטל אותה, או על 'בטל את האחרונה' לביטול הפעולה האחרונה.")
         hint.setWordWrap(True)
-        hint.setStyleSheet("font-size: 12px; color: #666;")
+        hint.setObjectName("undoHint")
         layout.addWidget(hint)
 
         scroll = QScrollArea()
@@ -173,31 +174,21 @@ class UndoHistoryDialog(QDialog):
         bottom.setSpacing(10)
 
         undo_last_btn = QPushButton("בטל את האחרונה")
-        undo_last_btn.setStyleSheet("""
-            QPushButton {background: #e74c3c; color: #fff; border-radius: 8px; padding: 8px 20px; font-size:14px; font-weight:700;}
-            QPushButton:hover {background: #c0392b;}
-            QPushButton:disabled {background: #ccc;}
-        """)
+        undo_last_btn.setProperty("cssClass", "danger")
         undo_last_btn.setEnabled(self._undo_manager.can_undo)
         undo_last_btn.clicked.connect(self._undo_last)
         bottom.addWidget(undo_last_btn)
         self._undo_last_btn = undo_last_btn
 
         clear_btn = QPushButton("נקה היסטוריה")
-        clear_btn.setStyleSheet("""
-            QPushButton {background: #95a5a6; color: #fff; border-radius: 8px; padding: 8px 16px; font-size:13px; font-weight:600;}
-            QPushButton:hover {background: #7f8c8d;}
-        """)
+        clear_btn.setProperty("cssClass", "secondary")
         clear_btn.clicked.connect(self._clear_all)
         bottom.addWidget(clear_btn)
 
         bottom.addStretch()
 
         close_btn = QPushButton("סגור")
-        close_btn.setStyleSheet("""
-            QPushButton {background: #3498db; color: #fff; border-radius: 8px; padding: 8px 20px; font-size:14px; font-weight:700;}
-            QPushButton:hover {background: #2980b9;}
-        """)
+        close_btn.setProperty("cssClass", "primary")
         close_btn.clicked.connect(self.accept)
         bottom.addWidget(close_btn)
 
@@ -223,16 +214,9 @@ class UndoHistoryDialog(QDialog):
         import datetime
         for batch in reversed(batches):
             row = QFrame()
-            row.setStyleSheet("""
-                QFrame {
-                    background: #f7faff;
-                    border: 1px solid #dce6f0;
-                    border-radius: 8px;
-                    padding: 6px;
-                }
-            """)
+            row.setProperty("cssClass", "undoRow")
             rl = QHBoxLayout(row)
-            rl.setContentsMargins(10, 6, 10, 6)
+            rl.setContentsMargins(10, 8, 10, 8)
             rl.setSpacing(10)
 
             ts = datetime.datetime.fromtimestamp(batch.timestamp).strftime("%H:%M:%S  %d/%m/%Y")
@@ -242,10 +226,7 @@ class UndoHistoryDialog(QDialog):
             rl.addWidget(info, 1)
 
             undo_btn = QPushButton("בטל")
-            undo_btn.setStyleSheet("""
-                QPushButton {background: #e67e22; color: #fff; border-radius: 6px; padding: 5px 14px; font-size:13px; font-weight:700;}
-                QPushButton:hover {background: #d35400;}
-            """)
+            undo_btn.setProperty("cssClass", "undoRowBtn")
             bid = batch.batch_id
             undo_btn.clicked.connect(lambda _, b=bid: self._undo_by_id(b))
             rl.addWidget(undo_btn)
@@ -323,11 +304,6 @@ class MainWindow(QMainWindow):
 
         self._set_loading_status("מכין את הלשוניות הראשיות...", 32)
         tabs = QTabWidget()
-        tabs.setStyleSheet("""
-            QTabWidget::pane { border: 0; background: #f8f8fc; }
-            QTabBar::tab:selected { background: #a7cdf7; color: #1c355e; font-weight: bold; }
-            QTabBar::tab { background: #daeaff; min-width:150px; min-height: 38px; font-size:17px; margin:2px; padding: 4px 10px; }
-        """)
         tabs.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
 
         # ── Buttons next to the tabs ──
@@ -337,39 +313,20 @@ class MainWindow(QMainWindow):
         corner_layout.setSpacing(6)
 
         self.undo_btn = QPushButton("↩ ביטול פעולות")
+        self.undo_btn.setObjectName("undoBtn")
         self.undo_btn.setToolTip("הצג את היסטוריית הפעולות ובטל פעולות שבוצעו")
-        self.undo_btn.setStyleSheet("""
-            QPushButton {
-                background: #e74c3c; color: #fff; border-radius: 8px;
-                padding: 5px 14px; font-size: 13px; font-weight: 800;
-            }
-            QPushButton:hover { background: #c0392b; }
-            QPushButton:disabled { background: #ccc; color: #888; }
-        """)
         self.undo_btn.clicked.connect(self._open_undo_dialog)
         corner_layout.addWidget(self.undo_btn)
 
         self.save_settings_btn = QPushButton("💾 שמור הגדרות")
+        self.save_settings_btn.setObjectName("saveSettingsBtn")
         self.save_settings_btn.setToolTip("שמור את כל הבחירות הנוכחיות כברירת מחדל לפעם הבאה")
-        self.save_settings_btn.setStyleSheet("""
-            QPushButton {
-                background: #27ae60; color: #fff; border-radius: 8px;
-                padding: 5px 14px; font-size: 13px; font-weight: 800;
-            }
-            QPushButton:hover { background: #1e8449; }
-        """)
         self.save_settings_btn.clicked.connect(self._save_settings)
         corner_layout.addWidget(self.save_settings_btn)
 
         self.reset_settings_btn = QPushButton("🔄 איפוס הגדרות")
+        self.reset_settings_btn.setObjectName("resetSettingsBtn")
         self.reset_settings_btn.setToolTip("מחק את כל ההגדרות השמורות וחזור לברירות המחדל")
-        self.reset_settings_btn.setStyleSheet("""
-            QPushButton {
-                background: #e67e22; color: #fff; border-radius: 8px;
-                padding: 5px 14px; font-size: 13px; font-weight: 800;
-            }
-            QPushButton:hover { background: #d35400; }
-        """)
         self.reset_settings_btn.clicked.connect(self._reset_settings)
         corner_layout.addWidget(self.reset_settings_btn)
 
@@ -411,7 +368,6 @@ class MainWindow(QMainWindow):
 
         self._set_loading_status("מבצע נגיעות אחרונות...", 98)
         self.setCentralWidget(main_widget)
-        self.setStyleSheet("QMainWindow { background: #f6f7f9; }")
 
         # Apply saved settings if any
         self._apply_saved_settings()
@@ -478,6 +434,11 @@ class MainWindow(QMainWindow):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     app.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+
+    # Load global stylesheet
+    qss = load_stylesheet()
+    if qss:
+        app.setStyleSheet(qss)
 
     loading_manager = ExternalLoadingManager()
     loading_manager.start()
