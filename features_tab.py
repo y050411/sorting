@@ -75,27 +75,7 @@ _VOCAL_FILENAME_KEYWORDS = (
 )
 _MAX_UNIQUE_FILENAME_ATTEMPTS = 10000
 
-# ---------------------------------------------------------------------------
-# Styles
-# ---------------------------------------------------------------------------
 
-_BTN_PRIMARY = """
-QPushButton {
-    background: #4682b4; color: #fff; border-radius: 8px;
-    padding: 9px 36px; font-size: 16px; font-weight: 700;
-}
-QPushButton:hover    { background: #1e4972; }
-QPushButton:disabled { background: #b0c4d8; }
-"""
-
-_INPUT_STYLE = (
-    "font-size: 14px; padding: 5px 8px; border-radius: 6px;"
-    " background: #fff; border: 1px solid #ccc;"
-)
-
-_CB_STYLE  = "font-size: 15px; color: #1c355e;"
-_RB_STYLE  = "font-size: 13px; color: #333;"
-_LBL_SMALL = "font-size: 13px; color: #444;"
 
 
 # ---------------------------------------------------------------------------
@@ -116,9 +96,7 @@ class FeaturesTab(QWidget):
 
         # ── Page title ────────────────────────────────────────────────────
         title = QLabel("תיקון שמות")
-        title.setStyleSheet(
-            "font-size: 24px; font-weight: 900; color: #1c355e;"
-        )
+        title.setProperty("cssClass", "pageTitle")
         title.setAlignment(Qt.AlignmentFlag.AlignRight)
         root.addWidget(title)
 
@@ -127,36 +105,25 @@ class FeaturesTab(QWidget):
 
         # ── Card ─────────────────────────────────────────────────────────
         card = QFrame()
-        card.setStyleSheet("""
-            QFrame {
-                background: #f0f5fb;
-                border: 1.5px solid #c3d5ee;
-                border-radius: 12px;
-            }
-        """)
+        card.setProperty("cssClass", "cardBlue")
         cl = QVBoxLayout(card)
         cl.setContentsMargins(20, 18, 20, 18)
         cl.setSpacing(10)
 
         ops_label = QLabel("בחר פעולות לביצוע:")
-        ops_label.setStyleSheet(
-            "font-size: 15px; font-weight: 700; color: #2c4a6e;"
-            " border: none;"
-        )
+        ops_label.setProperty("cssClass", "opsLabel")
         cl.addWidget(ops_label)
 
         # ── Checkbox 1 ────────────────────────────────────────────────────
         self._cb1 = QCheckBox("הסרת שם האמן משמות הקבצים")
-        self._cb1.setStyleSheet(_CB_STYLE)
         cl.addWidget(self._cb1)
 
         # ── Checkbox 2 + sub-options ──────────────────────────────────────
         self._cb2 = QCheckBox("הוספת שם אמן לשמות קבצים")
-        self._cb2.setStyleSheet(_CB_STYLE)
         cl.addWidget(self._cb2)
 
         self._opt2 = QWidget()
-        self._opt2.setStyleSheet("QWidget { background: transparent; border: none; }")
+        self._opt2.setProperty("cssClass", "subOptions")
         o2 = QVBoxLayout(self._opt2)
         o2.setContentsMargins(26, 2, 4, 2)
         o2.setSpacing(5)
@@ -168,7 +135,6 @@ class FeaturesTab(QWidget):
         self._add_end_rb   = QRadioButton("בסוף שם הקובץ")
         self._add_start_rb.setChecked(True)
         for rb in (self._add_start_rb, self._add_end_rb):
-            rb.setStyleSheet(_RB_STYLE)
             self._add_pos_grp.addButton(rb)
             row2a.addWidget(rb)
         row2a.addStretch()
@@ -177,11 +143,10 @@ class FeaturesTab(QWidget):
         row2b = QHBoxLayout()
         row2b.setSpacing(8)
         sep_lbl = QLabel("מפריד:")
-        sep_lbl.setStyleSheet(_LBL_SMALL)
+        sep_lbl.setProperty("cssClass", "labelSmall")
         self._add_sep = HebrewLineEdit()
         self._add_sep.setText(" - ")
         self._add_sep.setMaximumWidth(90)
-        self._add_sep.setStyleSheet(_INPUT_STYLE)
         row2b.addWidget(sep_lbl)
         row2b.addWidget(self._add_sep)
         row2b.addStretch()
@@ -193,20 +158,18 @@ class FeaturesTab(QWidget):
 
         # ── Checkbox 3 + sub-options ──────────────────────────────────────
         self._cb3 = QCheckBox("מחיקת תווים משמות קבצים")
-        self._cb3.setStyleSheet(_CB_STYLE)
         cl.addWidget(self._cb3)
 
         self._opt3 = QWidget()
-        self._opt3.setStyleSheet("QWidget { background: transparent; border: none; }")
+        self._opt3.setProperty("cssClass", "subOptions")
         o3 = QHBoxLayout(self._opt3)
         o3.setContentsMargins(26, 2, 4, 2)
         o3.setSpacing(8)
         lbl3 = QLabel("תווים למחיקה:")
-        lbl3.setStyleSheet(_LBL_SMALL)
+        lbl3.setProperty("cssClass", "labelSmall")
         self._del_chars = HebrewLineEdit()
         self._del_chars.setPlaceholderText("למשל: _#!")
         self._del_chars.setMaximumWidth(220)
-        self._del_chars.setStyleSheet(_INPUT_STYLE)
         o3.addWidget(lbl3)
         o3.addWidget(self._del_chars)
         o3.addStretch()
@@ -217,20 +180,18 @@ class FeaturesTab(QWidget):
 
         # ── Checkbox 4 + sub-options ──────────────────────────────────────
         self._cb4 = QCheckBox("מחיקת מילים משמות קבצים")
-        self._cb4.setStyleSheet(_CB_STYLE)
         cl.addWidget(self._cb4)
 
         self._opt4 = QWidget()
-        self._opt4.setStyleSheet("QWidget { background: transparent; border: none; }")
+        self._opt4.setProperty("cssClass", "subOptions")
         o4 = QHBoxLayout(self._opt4)
         o4.setContentsMargins(26, 2, 4, 2)
         o4.setSpacing(8)
         lbl4 = QLabel("מילה / ביטוי למחיקה:")
-        lbl4.setStyleSheet(_LBL_SMALL)
+        lbl4.setProperty("cssClass", "labelSmall")
         self._del_word = HebrewLineEdit()
         self._del_word.setPlaceholderText("למשל: remix")
         self._del_word.setMaximumWidth(280)
-        self._del_word.setStyleSheet(_INPUT_STYLE)
         o4.addWidget(lbl4)
         o4.addWidget(self._del_word)
         o4.addStretch()
@@ -241,32 +202,27 @@ class FeaturesTab(QWidget):
 
         # ── Checkboxes 5 & 6 ─────────────────────────────────────────────
         self._cb5 = QCheckBox("הסרת רווחים ותווים מיותרים")
-        self._cb5.setStyleSheet(_CB_STYLE)
         cl.addWidget(self._cb5)
 
         self._cb6 = QCheckBox("תיקון אוטומטי לפי מטא-דאטה")
-        self._cb6.setStyleSheet(_CB_STYLE)
         cl.addWidget(self._cb6)
 
         # ── Separator ─────────────────────────────────────────────────────
         hr = QFrame()
         hr.setFrameShape(QFrame.Shape.HLine)
-        hr.setStyleSheet("border: none; background: #c3d5ee; max-height: 1px;")
+        hr.setProperty("cssClass", "separator")
         cl.addWidget(hr)
 
         # ── Scope selector ────────────────────────────────────────────────
         scope_row = QHBoxLayout()
         scope_row.setSpacing(16)
         scope_lbl = QLabel("תחום:")
-        scope_lbl.setStyleSheet(
-            "font-size: 14px; font-weight: 600; color: #2c4a6e; border: none;"
-        )
+        scope_lbl.setProperty("cssClass", "labelBold")
         self._scope_grp = QButtonGroup(self)
         self._scope_main = QRadioButton("תיקייה ראשית בלבד")
         self._scope_sub  = QRadioButton("כולל תתי-תיקיות")
         self._scope_main.setChecked(True)
         for rb in (self._scope_main, self._scope_sub):
-            rb.setStyleSheet("font-size: 14px; color: #333;")
             self._scope_grp.addButton(rb)
         scope_row.addWidget(scope_lbl)
         scope_row.addWidget(self._scope_main)
@@ -278,7 +234,7 @@ class FeaturesTab(QWidget):
         exec_row = QHBoxLayout()
         exec_row.addStretch()
         self._exec_btn = QPushButton("בצע")
-        self._exec_btn.setStyleSheet(_BTN_PRIMARY)
+        self._exec_btn.setProperty("cssClass", "primary")
         self._exec_btn.clicked.connect(self._execute)
         exec_row.addWidget(self._exec_btn)
         cl.addLayout(exec_row)
@@ -286,41 +242,33 @@ class FeaturesTab(QWidget):
         cards_row.addWidget(card, 2)
 
         tools_card = QFrame()
-        tools_card.setStyleSheet("""
-            QFrame {
-                background: #f0f5fb;
-                border: 1.5px solid #c3d5ee;
-                border-radius: 12px;
-            }
-        """)
+        tools_card.setProperty("cssClass", "toolsCard")
         tl = QVBoxLayout(tools_card)
         tl.setContentsMargins(20, 18, 20, 18)
         tl.setSpacing(10)
 
         tools_label = QLabel("כלים נוספים")
-        tools_label.setStyleSheet(
-            "font-size: 15px; font-weight: 700; color: #2c4a6e; border: none;"
-        )
+        tools_label.setProperty("cssClass", "toolsLabel")
         tl.addWidget(tools_label)
 
         self._dup_signature_btn = QPushButton("מחיקת כפילויות לפי חתימה")
-        self._dup_signature_btn.setStyleSheet(_BTN_PRIMARY)
+        self._dup_signature_btn.setProperty("cssClass", "primary")
         self._dup_signature_btn.clicked.connect(self._delete_duplicates_by_signature)
         tl.addWidget(self._dup_signature_btn)
 
         # ── "Empty source to target" button + options ─────────────────
         hr_tools1 = QFrame()
         hr_tools1.setFrameShape(QFrame.Shape.HLine)
-        hr_tools1.setStyleSheet("border: none; background: #c3d5ee; max-height: 1px;")
+        hr_tools1.setProperty("cssClass", "separator")
         tl.addWidget(hr_tools1)
 
         self._move_to_target_btn = QPushButton("ריקון תיקיית מקור לתיקיית יעד")
-        self._move_to_target_btn.setStyleSheet(_BTN_PRIMARY)
+        self._move_to_target_btn.setProperty("cssClass", "primary")
         self._move_to_target_btn.clicked.connect(self._move_source_to_target)
         tl.addWidget(self._move_to_target_btn)
 
         self._move_target_widget = QWidget()
-        self._move_target_widget.setStyleSheet("QWidget { background: transparent; border: none; }")
+        self._move_target_widget.setProperty("cssClass", "subOptions")
         move_layout = QVBoxLayout(self._move_target_widget)
         move_layout.setContentsMargins(4, 2, 4, 2)
         move_layout.setSpacing(6)
@@ -328,15 +276,11 @@ class FeaturesTab(QWidget):
         target_row = QHBoxLayout()
         target_row.setSpacing(8)
         target_lbl = QLabel("תיקיית יעד:")
-        target_lbl.setStyleSheet(_LBL_SMALL)
+        target_lbl.setProperty("cssClass", "labelSmall")
         self._move_target_path = HebrewLineEdit()
         self._move_target_path.setPlaceholderText("הכנס נתיב יעד...")
-        self._move_target_path.setStyleSheet(_INPUT_STYLE)
         self._move_target_browse_btn = QPushButton("עיון...")
-        self._move_target_browse_btn.setStyleSheet("""
-            QPushButton {background: #4682b4; color: #fff; border-radius: 6px; padding: 5px 12px; font-size:13px;}
-            QPushButton:hover {background: #1e4972;}
-        """)
+        self._move_target_browse_btn.setProperty("cssClass", "browse")
         self._move_target_browse_btn.clicked.connect(self._browse_move_target)
         target_row.addWidget(target_lbl)
         target_row.addWidget(self._move_target_path, 1)
@@ -350,7 +294,6 @@ class FeaturesTab(QWidget):
         self._move_scope_sub = QRadioButton("כולל תתי-תיקיות")
         self._move_scope_main.setChecked(True)
         for rb in (self._move_scope_main, self._move_scope_sub):
-            rb.setStyleSheet("font-size: 13px; color: #333;")
             self._move_scope_grp.addButton(rb)
         move_scope_row.addWidget(self._move_scope_main)
         move_scope_row.addWidget(self._move_scope_sub)
@@ -358,13 +301,7 @@ class FeaturesTab(QWidget):
         move_layout.addLayout(move_scope_row)
 
         self._move_exec_btn = QPushButton("העבר קבצים")
-        self._move_exec_btn.setStyleSheet("""
-            QPushButton {
-                background: #2e86c1; color: #fff; border-radius: 8px;
-                padding: 7px 24px; font-size: 14px; font-weight: 600;
-            }
-            QPushButton:hover { background: #1a5276; }
-        """)
+        self._move_exec_btn.setProperty("cssClass", "execute")
         self._move_exec_btn.clicked.connect(self._execute_move_source_to_target)
         move_layout.addWidget(self._move_exec_btn, alignment=Qt.AlignmentFlag.AlignLeft)
 
@@ -374,16 +311,16 @@ class FeaturesTab(QWidget):
         # ── "Delete empty folders" button + options ───────────────────
         hr_tools2 = QFrame()
         hr_tools2.setFrameShape(QFrame.Shape.HLine)
-        hr_tools2.setStyleSheet("border: none; background: #c3d5ee; max-height: 1px;")
+        hr_tools2.setProperty("cssClass", "separator")
         tl.addWidget(hr_tools2)
 
         self._del_empty_btn = QPushButton("מחיקת תיקיות ריקות")
-        self._del_empty_btn.setStyleSheet(_BTN_PRIMARY)
+        self._del_empty_btn.setProperty("cssClass", "primary")
         self._del_empty_btn.clicked.connect(self._delete_empty_folders)
         tl.addWidget(self._del_empty_btn)
 
         self._del_empty_widget = QWidget()
-        self._del_empty_widget.setStyleSheet("QWidget { background: transparent; border: none; }")
+        self._del_empty_widget.setProperty("cssClass", "subOptions")
         del_empty_layout = QVBoxLayout(self._del_empty_widget)
         del_empty_layout.setContentsMargins(4, 2, 4, 2)
         del_empty_layout.setSpacing(6)
@@ -395,7 +332,6 @@ class FeaturesTab(QWidget):
         self._del_empty_scope_sub = QRadioButton("כולל תתי-תיקיות")
         self._del_empty_scope_main.setChecked(True)
         for rb in (self._del_empty_scope_main, self._del_empty_scope_sub):
-            rb.setStyleSheet("font-size: 13px; color: #333;")
             self._del_empty_scope_grp.addButton(rb)
         del_empty_scope_row.addWidget(self._del_empty_scope_main)
         del_empty_scope_row.addWidget(self._del_empty_scope_sub)
@@ -403,13 +339,7 @@ class FeaturesTab(QWidget):
         del_empty_layout.addLayout(del_empty_scope_row)
 
         self._del_empty_exec_btn = QPushButton("מחק תיקיות ריקות")
-        self._del_empty_exec_btn.setStyleSheet("""
-            QPushButton {
-                background: #c0392b; color: #fff; border-radius: 8px;
-                padding: 7px 24px; font-size: 14px; font-weight: 600;
-            }
-            QPushButton:hover { background: #a93226; }
-        """)
+        self._del_empty_exec_btn.setProperty("cssClass", "executeDanger")
         self._del_empty_exec_btn.clicked.connect(self._execute_delete_empty_folders)
         del_empty_layout.addWidget(self._del_empty_exec_btn, alignment=Qt.AlignmentFlag.AlignLeft)
 
@@ -419,18 +349,16 @@ class FeaturesTab(QWidget):
         # ── "Convert audio files" button + options ────────────────────
         hr_tools3 = QFrame()
         hr_tools3.setFrameShape(QFrame.Shape.HLine)
-        hr_tools3.setStyleSheet("border: none; background: #c3d5ee; max-height: 1px;")
+        hr_tools3.setProperty("cssClass", "separator")
         tl.addWidget(hr_tools3)
 
         self._convert_btn = QPushButton("המרת קבצי שמע")
-        self._convert_btn.setStyleSheet(_BTN_PRIMARY)
+        self._convert_btn.setProperty("cssClass", "primary")
         self._convert_btn.clicked.connect(self._toggle_convert_panel)
         tl.addWidget(self._convert_btn)
 
         self._convert_widget = QWidget()
-        self._convert_widget.setStyleSheet(
-            "QWidget { background: #e8eef6; border: 1px solid #c3d5ee; border-radius: 8px; }"
-        )
+        self._convert_widget.setProperty("cssClass", "subPanel")
         convert_layout = QVBoxLayout(self._convert_widget)
         convert_layout.setContentsMargins(10, 8, 10, 8)
         convert_layout.setSpacing(6)
@@ -439,11 +367,10 @@ class FeaturesTab(QWidget):
         src_fmt_row = QHBoxLayout()
         src_fmt_row.setSpacing(8)
         src_fmt_lbl = QLabel("פורמט מקור:")
-        src_fmt_lbl.setStyleSheet(_LBL_SMALL)
+        src_fmt_lbl.setProperty("cssClass", "labelSmall")
         self._convert_src_fmt = QComboBox()
         self._convert_src_fmt.addItems(["mp3", "flac", "wav", "ogg", "m4a", "mp4", "aac", "opus", "aiff", "כל הפורמטים"])
         self._convert_src_fmt.setCurrentText("mp3")
-        self._convert_src_fmt.setStyleSheet("font-size: 13px; padding: 3px 6px;")
         src_fmt_row.addWidget(src_fmt_lbl)
         src_fmt_row.addWidget(self._convert_src_fmt)
         src_fmt_row.addStretch()
@@ -453,11 +380,10 @@ class FeaturesTab(QWidget):
         tgt_fmt_row = QHBoxLayout()
         tgt_fmt_row.setSpacing(8)
         tgt_fmt_lbl = QLabel("פורמט יעד:")
-        tgt_fmt_lbl.setStyleSheet(_LBL_SMALL)
+        tgt_fmt_lbl.setProperty("cssClass", "labelSmall")
         self._convert_tgt_fmt = QComboBox()
         self._convert_tgt_fmt.addItems(["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff"])
         self._convert_tgt_fmt.setCurrentText("flac")
-        self._convert_tgt_fmt.setStyleSheet("font-size: 13px; padding: 3px 6px;")
         tgt_fmt_row.addWidget(tgt_fmt_lbl)
         tgt_fmt_row.addWidget(self._convert_tgt_fmt)
         tgt_fmt_row.addStretch()
@@ -467,11 +393,10 @@ class FeaturesTab(QWidget):
         bitrate_row = QHBoxLayout()
         bitrate_row.setSpacing(8)
         bitrate_lbl = QLabel("ביטרייט (kbps, לפורמטים דחוסים):")
-        bitrate_lbl.setStyleSheet(_LBL_SMALL)
+        bitrate_lbl.setProperty("cssClass", "labelSmall")
         self._convert_bitrate = QComboBox()
         self._convert_bitrate.addItems(["אוטומטי", "128", "192", "256", "320"])
         self._convert_bitrate.setCurrentText("אוטומטי")
-        self._convert_bitrate.setStyleSheet("font-size: 13px; padding: 3px 6px;")
         bitrate_row.addWidget(bitrate_lbl)
         bitrate_row.addWidget(self._convert_bitrate)
         bitrate_row.addStretch()
@@ -485,7 +410,6 @@ class FeaturesTab(QWidget):
         self._convert_scope_sub = QRadioButton("כולל תתי-תיקיות")
         self._convert_scope_main.setChecked(True)
         for rb in (self._convert_scope_main, self._convert_scope_sub):
-            rb.setStyleSheet("font-size: 13px; color: #333;")
             self._convert_scope_grp.addButton(rb)
         convert_scope_row.addWidget(self._convert_scope_main)
         convert_scope_row.addWidget(self._convert_scope_sub)
@@ -494,19 +418,12 @@ class FeaturesTab(QWidget):
 
         # Delete originals option
         self._convert_delete_orig = QCheckBox("מחק קבצי מקור לאחר המרה מוצלחת")
-        self._convert_delete_orig.setStyleSheet("font-size: 13px; color: #333;")
         self._convert_delete_orig.setChecked(False)
         convert_layout.addWidget(self._convert_delete_orig)
 
         # Execute button
         self._convert_exec_btn = QPushButton("בצע המרה")
-        self._convert_exec_btn.setStyleSheet("""
-            QPushButton {
-                background: #2e86c1; color: #fff; border-radius: 8px;
-                padding: 7px 24px; font-size: 14px; font-weight: 600;
-            }
-            QPushButton:hover { background: #1a5276; }
-        """)
+        self._convert_exec_btn.setProperty("cssClass", "execute")
         self._convert_exec_btn.clicked.connect(self._execute_convert_files)
         convert_layout.addWidget(self._convert_exec_btn, alignment=Qt.AlignmentFlag.AlignLeft)
 
@@ -516,18 +433,16 @@ class FeaturesTab(QWidget):
         # ── "Replace image" button + options ──────────────────────────
         hr_tools4 = QFrame()
         hr_tools4.setFrameShape(QFrame.Shape.HLine)
-        hr_tools4.setStyleSheet("border: none; background: #c3d5ee; max-height: 1px;")
+        hr_tools4.setProperty("cssClass", "separator")
         tl.addWidget(hr_tools4)
 
         self._replace_img_btn = QPushButton("החלפת תמונה לקובץ")
-        self._replace_img_btn.setStyleSheet(_BTN_PRIMARY)
+        self._replace_img_btn.setProperty("cssClass", "primary")
         self._replace_img_btn.clicked.connect(self._toggle_replace_img_panel)
         tl.addWidget(self._replace_img_btn)
 
         self._replace_img_widget = QWidget()
-        self._replace_img_widget.setStyleSheet(
-            "QWidget { background: #e8eef6; border: 1px solid #c3d5ee; border-radius: 8px; }"
-        )
+        self._replace_img_widget.setProperty("cssClass", "subPanel")
         replace_img_layout = QVBoxLayout(self._replace_img_widget)
         replace_img_layout.setContentsMargins(10, 8, 10, 8)
         replace_img_layout.setSpacing(6)
@@ -536,15 +451,11 @@ class FeaturesTab(QWidget):
         song_row = QHBoxLayout()
         song_row.setSpacing(8)
         song_lbl = QLabel("קובץ שיר:")
-        song_lbl.setStyleSheet(_LBL_SMALL)
+        song_lbl.setProperty("cssClass", "labelSmall")
         self._replace_img_song_path = HebrewLineEdit()
         self._replace_img_song_path.setPlaceholderText("בחר קובץ שמע...")
-        self._replace_img_song_path.setStyleSheet(_INPUT_STYLE)
         self._replace_img_song_browse = QPushButton("עיון...")
-        self._replace_img_song_browse.setStyleSheet("""
-            QPushButton {background: #4682b4; color: #fff; border-radius: 6px; padding: 5px 12px; font-size:13px;}
-            QPushButton:hover {background: #1e4972;}
-        """)
+        self._replace_img_song_browse.setProperty("cssClass", "browse")
         self._replace_img_song_browse.clicked.connect(self._browse_replace_img_song)
         song_row.addWidget(song_lbl)
         song_row.addWidget(self._replace_img_song_path, 1)
@@ -555,15 +466,11 @@ class FeaturesTab(QWidget):
         img_row = QHBoxLayout()
         img_row.setSpacing(8)
         img_lbl = QLabel("קובץ תמונה:")
-        img_lbl.setStyleSheet(_LBL_SMALL)
+        img_lbl.setProperty("cssClass", "labelSmall")
         self._replace_img_image_path = HebrewLineEdit()
         self._replace_img_image_path.setPlaceholderText("בחר תמונה...")
-        self._replace_img_image_path.setStyleSheet(_INPUT_STYLE)
         self._replace_img_image_browse = QPushButton("עיון...")
-        self._replace_img_image_browse.setStyleSheet("""
-            QPushButton {background: #4682b4; color: #fff; border-radius: 6px; padding: 5px 12px; font-size:13px;}
-            QPushButton:hover {background: #1e4972;}
-        """)
+        self._replace_img_image_browse.setProperty("cssClass", "browse")
         self._replace_img_image_browse.clicked.connect(self._browse_replace_img_image)
         img_row.addWidget(img_lbl)
         img_row.addWidget(self._replace_img_image_path, 1)
@@ -579,13 +486,7 @@ class FeaturesTab(QWidget):
 
         # Execute button
         self._replace_img_exec_btn = QPushButton("החלף תמונה")
-        self._replace_img_exec_btn.setStyleSheet("""
-            QPushButton {
-                background: #2e86c1; color: #fff; border-radius: 8px;
-                padding: 7px 24px; font-size: 14px; font-weight: 600;
-            }
-            QPushButton:hover { background: #1a5276; }
-        """)
+        self._replace_img_exec_btn.setProperty("cssClass", "execute")
         self._replace_img_exec_btn.clicked.connect(self._execute_replace_image)
         replace_img_layout.addWidget(self._replace_img_exec_btn, alignment=Qt.AlignmentFlag.AlignLeft)
 
@@ -595,18 +496,16 @@ class FeaturesTab(QWidget):
         # ── "Vocal sorting" button + options ───────────────────────────
         hr_tools5 = QFrame()
         hr_tools5.setFrameShape(QFrame.Shape.HLine)
-        hr_tools5.setStyleSheet("border: none; background: #c3d5ee; max-height: 1px;")
+        hr_tools5.setProperty("cssClass", "separator")
         tl.addWidget(hr_tools5)
 
         self._vocal_sort_btn = QPushButton("מיון ווקאלי")
-        self._vocal_sort_btn.setStyleSheet(_BTN_PRIMARY)
+        self._vocal_sort_btn.setProperty("cssClass", "primary")
         self._vocal_sort_btn.clicked.connect(self._toggle_vocal_sort_panel)
         tl.addWidget(self._vocal_sort_btn)
 
         self._vocal_sort_widget = QWidget()
-        self._vocal_sort_widget.setStyleSheet(
-            "QWidget { background: #e8eef6; border: 1px solid #c3d5ee; border-radius: 8px; }"
-        )
+        self._vocal_sort_widget.setProperty("cssClass", "subPanel")
         vocal_layout = QVBoxLayout(self._vocal_sort_widget)
         vocal_layout.setContentsMargins(10, 8, 10, 8)
         vocal_layout.setSpacing(6)
@@ -614,15 +513,11 @@ class FeaturesTab(QWidget):
         vocal_target_row = QHBoxLayout()
         vocal_target_row.setSpacing(8)
         vocal_target_lbl = QLabel("תיקיית יעד:")
-        vocal_target_lbl.setStyleSheet(_LBL_SMALL)
+        vocal_target_lbl.setProperty("cssClass", "labelSmall")
         self._vocal_target_path = HebrewLineEdit()
         self._vocal_target_path.setPlaceholderText("הכנס נתיב תיקיית יעד...")
-        self._vocal_target_path.setStyleSheet(_INPUT_STYLE)
         self._vocal_target_browse_btn = QPushButton("עיון...")
-        self._vocal_target_browse_btn.setStyleSheet("""
-            QPushButton {background: #4682b4; color: #fff; border-radius: 6px; padding: 5px 12px; font-size:13px;}
-            QPushButton:hover {background: #1e4972;}
-        """)
+        self._vocal_target_browse_btn.setProperty("cssClass", "browse")
         self._vocal_target_browse_btn.clicked.connect(self._browse_vocal_target)
         vocal_target_row.addWidget(vocal_target_lbl)
         vocal_target_row.addWidget(self._vocal_target_path, 1)
@@ -636,7 +531,6 @@ class FeaturesTab(QWidget):
         self._vocal_scope_sub = QRadioButton("כולל תתי-תיקיות")
         self._vocal_scope_main.setChecked(True)
         for rb in (self._vocal_scope_main, self._vocal_scope_sub):
-            rb.setStyleSheet("font-size: 13px; color: #333;")
             self._vocal_scope_grp.addButton(rb)
         vocal_scope_row.addWidget(self._vocal_scope_main)
         vocal_scope_row.addWidget(self._vocal_scope_sub)
@@ -650,7 +544,6 @@ class FeaturesTab(QWidget):
         self._vocal_mode_move = QRadioButton("העבר")
         self._vocal_mode_copy.setChecked(True)
         for rb in (self._vocal_mode_copy, self._vocal_mode_move):
-            rb.setStyleSheet("font-size: 13px; color: #333;")
             self._vocal_mode_grp.addButton(rb)
         vocal_mode_row.addWidget(self._vocal_mode_copy)
         vocal_mode_row.addWidget(self._vocal_mode_move)
@@ -658,13 +551,7 @@ class FeaturesTab(QWidget):
         vocal_layout.addLayout(vocal_mode_row)
 
         self._vocal_exec_btn = QPushButton("בצע מיון ווקאלי")
-        self._vocal_exec_btn.setStyleSheet("""
-            QPushButton {
-                background: #2e86c1; color: #fff; border-radius: 8px;
-                padding: 7px 24px; font-size: 14px; font-weight: 600;
-            }
-            QPushButton:hover { background: #1a5276; }
-        """)
+        self._vocal_exec_btn.setProperty("cssClass", "execute")
         self._vocal_exec_btn.clicked.connect(self._execute_vocal_sort)
         vocal_layout.addWidget(self._vocal_exec_btn, alignment=Qt.AlignmentFlag.AlignLeft)
 
@@ -1085,26 +972,21 @@ class FeaturesTab(QWidget):
         dlg.setWindowTitle("מחיקת כפילויות לפי חתימה")
         dlg.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         dlg.resize(960, 620)
-        dlg.setStyleSheet("""
-            QDialog { background: #f8fafd; }
-            QScrollArea { border: none; background: transparent; }
-        """)
+        dlg.setStyleSheet("QScrollArea { border: none; background: transparent; }")
         layout = QVBoxLayout(dlg)
         layout.setContentsMargins(20, 20, 20, 16)
         layout.setSpacing(12)
 
         # ── Header ─────────────────────────────────────────────────────
         header = QLabel("בחר שירים לשמירה בכל קבוצה — כל השאר יימחקו")
-        header.setStyleSheet(
-            "font-size: 16px; font-weight: 700; color: #1c355e; padding: 0 0 4px 0;"
-        )
+        header.setProperty("cssClass", "labelBold")
         layout.addWidget(header)
 
         total_dups = sum(len(p) - 1 for p in duplicates)
         summary_lbl = QLabel(
             f"נמצאו {len(duplicates)} קבוצות כפילויות  •  {total_dups} קבצים מיותרים"
         )
-        summary_lbl.setStyleSheet("font-size: 13px; color: #5a6b85; padding: 0 0 6px 0;")
+        summary_lbl.setProperty("cssClass", "hint")
         layout.addWidget(summary_lbl)
 
         # ── Scroll area ────────────────────────────────────────────────
@@ -1120,21 +1002,13 @@ class FeaturesTab(QWidget):
         for idx, paths in enumerate(duplicates, start=1):
             # ── Group card ─────────────────────────────────────────────
             card = QFrame()
-            card.setStyleSheet("""
-                QFrame {
-                    background: #ffffff;
-                    border: 1px solid #d4dfe9;
-                    border-radius: 10px;
-                }
-            """)
+            card.setProperty("cssClass", "card")
             card_layout = QVBoxLayout(card)
             card_layout.setContentsMargins(16, 12, 16, 12)
             card_layout.setSpacing(10)
 
             group_label = QLabel(f"קבוצה {idx}  —  {len(paths)} עותקים זהים")
-            group_label.setStyleSheet(
-                "font-size: 14px; font-weight: 700; color: #2c4a6e; border: none;"
-            )
+            group_label.setProperty("cssClass", "labelBold")
             card_layout.addWidget(group_label)
 
             row_widget = QWidget()
@@ -1193,10 +1067,7 @@ class FeaturesTab(QWidget):
                 cb = QCheckBox(p.name)
                 cb.setToolTip(str(p))
                 cb.setChecked(p == keep_path)
-                cb.setStyleSheet(
-                    "font-size: 13px; color: #1c355e; font-weight: 500; "
-                    "border: none; padding: 2px 0;"
-                )
+                cb.setStyleSheet("border: none; padding: 2px 0;")
                 item_layout.addWidget(cb)
 
                 # Show relative path from the base folder
@@ -1206,9 +1077,7 @@ class FeaturesTab(QWidget):
                 except ValueError:
                     folder_text = str(p.parent)
                 path_label = QLabel(f"📁 {folder_text}")
-                path_label.setStyleSheet(
-                    "font-size: 11px; color: #7a8da5; border: none; padding: 0;"
-                )
+                path_label.setProperty("cssClass", "hint")
                 path_label.setToolTip(str(p.parent))
                 item_layout.addWidget(path_label)
 
@@ -1230,25 +1099,12 @@ class FeaturesTab(QWidget):
         btn_row.addStretch()
 
         cancel_btn = QPushButton("ביטול")
-        cancel_btn.setStyleSheet("""
-            QPushButton {
-                background: #e8edf3; color: #3a4a60; border-radius: 8px;
-                padding: 9px 30px; font-size: 14px; font-weight: 600;
-                border: 1px solid #c3d5ee;
-            }
-            QPushButton:hover { background: #d5dde8; }
-        """)
+        cancel_btn.setProperty("cssClass", "secondary")
         cancel_btn.clicked.connect(dlg.reject)
         btn_row.addWidget(cancel_btn)
 
         delete_btn = QPushButton("🗑  מחק מסומנים")
-        delete_btn.setStyleSheet("""
-            QPushButton {
-                background: #c0392b; color: #fff; border-radius: 8px;
-                padding: 9px 30px; font-size: 14px; font-weight: 700;
-            }
-            QPushButton:hover { background: #a93226; }
-        """)
+        delete_btn.setProperty("cssClass", "danger")
         delete_btn.clicked.connect(dlg.accept)
         btn_row.addWidget(delete_btn)
 
@@ -2390,12 +2246,11 @@ class FeaturesTab(QWidget):
         dlg.resize(640, 420)
         layout = QVBoxLayout(dlg)
         lbl = QLabel(f"יבוצעו {len(pairs)} שינויים:")
-        lbl.setStyleSheet("font-size: 14px; font-weight: 700;")
+        lbl.setProperty("cssClass", "labelBold")
         layout.addWidget(lbl)
         txt = QTextEdit()
         txt.setReadOnly(True)
         txt.setPlainText("\n".join(preview_lines))
-        txt.setStyleSheet("font-size: 13px;")
         layout.addWidget(txt)
         btn_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel

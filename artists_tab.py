@@ -33,26 +33,16 @@ class AliasesDialog(QDialog):
         root.setSpacing(10)
 
         title = QLabel(f"כינויים עבור: {artist_name}")
-        title.setStyleSheet("font-size: 18px; font-weight: 800; color: #1c355e;")
+        title.setProperty("cssClass", "sectionTitle")
         root.addWidget(title)
 
         hint = QLabel("כל כינוי הוא שם חלופי. בהמשך, אם שם השיר תואם לכינוי — הוא יחשב כשייך לאמן הראשי.")
         hint.setWordWrap(True)
-        hint.setStyleSheet("font-size: 12px; color: #444;")
+        hint.setProperty("cssClass", "hint")
         root.addWidget(hint)
 
         self.listw = QListWidget()
         self.listw.setSelectionMode(QListWidget.SelectionMode.NoSelection)
-        self.listw.setStyleSheet("""
-            QListWidget {
-                border: 1px solid #d0d7e2;
-                border-radius: 10px;
-                background: #fbfcff;
-                padding: 6px;
-                font-size: 14px;
-            }
-            QListWidget::item { padding: 6px; border-radius: 8px; }
-        """)
         root.addWidget(self.listw)
 
         for a in sorted(set(aliases)):
@@ -62,40 +52,19 @@ class AliasesDialog(QDialog):
             self.listw.addItem(item)
 
         add_box = QGroupBox("הוספת כינויים")
-        add_box.setStyleSheet("""
-            QGroupBox {
-                font-weight: 700;
-                border: 1px solid #d0d7e2;
-                border-radius: 10px;
-                margin-top: 8px;
-                background: #ffffff;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 12px;
-                padding: 0 6px;
-            }
-        """)
         add_layout = QHBoxLayout(add_box)
         add_layout.setSpacing(10)
 
         self.add_edit = QLineEdit()
         self.add_edit.setPlaceholderText("כינוי חדש (או כמה כינויים מופרדים בפסיקים)...")
-        self.add_edit.setStyleSheet("background:#fff; font-size:14px; padding:6px;")
         self.add_edit.returnPressed.connect(self._add_aliases)
 
         add_btn = QPushButton("הוסף")
-        add_btn.setStyleSheet("""
-            QPushButton {background: #4682b4; color: #fff; border-radius: 8px; padding: 8px 16px; font-size:14px; font-weight:700;}
-            QPushButton:hover {background: #1e4972;}
-        """)
+        add_btn.setProperty("cssClass", "primary")
         add_btn.clicked.connect(self._add_aliases)
 
         del_btn = QPushButton("מחק מסומנים")
-        del_btn.setStyleSheet("""
-            QPushButton {background: #d9534f; color: #fff; border-radius: 8px; padding: 8px 16px; font-size:14px; font-weight:800;}
-            QPushButton:hover {background: #b63f3b;}
-        """)
+        del_btn.setProperty("cssClass", "danger")
         del_btn.clicked.connect(self._delete_selected)
 
         add_layout.addWidget(self.add_edit, 1)
@@ -108,10 +77,7 @@ class AliasesDialog(QDialog):
         bottom.addStretch()
 
         ok_btn = QPushButton("סגור")
-        ok_btn.setStyleSheet("""
-            QPushButton {background: #eef3f8; color: #1c355e; border: 1px solid #d0d7e2; border-radius: 8px; padding: 8px 16px; font-size:14px; font-weight:700;}
-            QPushButton:hover {background: #dde7f2;}
-        """)
+        ok_btn.setProperty("cssClass", "secondary")
         ok_btn.clicked.connect(self.accept)
         bottom.addWidget(ok_btn)
 
@@ -170,7 +136,7 @@ class SplitArtistDialog(QDialog):
 
         title = QLabel(f'יש להקליד שני שמות חדשים במקום "{original_name}"')
         title.setWordWrap(True)
-        title.setStyleSheet("font-size: 14px; font-weight: 700; color: #1c355e;")
+        title.setProperty("cssClass", "labelBold")
         root.addWidget(title)
 
         self.name1_edit = QLineEdit()
@@ -217,6 +183,7 @@ class SimilarArtistsDialog(QDialog):
         split_suggestions: dict[str, tuple[str, str] | None],
     ):
         super().__init__(parent)
+        self.setObjectName("similarArtistsDialog")
         self.setWindowTitle("השוואת אמנים דומים")
         self.setMinimumSize(860, 460)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
@@ -234,12 +201,12 @@ class SimilarArtistsDialog(QDialog):
         root.setSpacing(10)
 
         title = QLabel("נמצאה קבוצת אמנים דומים. עבור כל אמן אפשר לבחור פעולה:")
-        title.setStyleSheet("font-size: 16px; font-weight: 800; color: #1c355e;")
+        title.setProperty("cssClass", "sectionTitle")
         root.addWidget(title)
 
         hint = QLabel('ניתן לסמן עד שני אמנים כ-"אמן עיקרי". כל שאר האמנים באשכול שדומים לאמן עיקרי מסוים יוגדרו ככינויים שלו, מלבד אמנים שסומנו כ-"אל תכלול" או "פצל".')
         hint.setWordWrap(True)
-        hint.setStyleSheet("font-size: 12px; color: #555;")
+        hint.setProperty("cssClass", "hint")
         root.addWidget(hint)
 
         grid = QGridLayout()
@@ -252,10 +219,10 @@ class SimilarArtistsDialog(QDialog):
 
         for i, name in enumerate(artists, start=1):
             name_lbl = QLabel(name)
-            name_lbl.setStyleSheet("font-size: 14px; color: #1c355e; font-weight: 650;")
+            name_lbl.setStyleSheet("font-weight: 650;")
 
             status_lbl = QLabel("כינוי")
-            status_lbl.setStyleSheet("font-size: 12px; color: #555;")
+            status_lbl.setProperty("cssClass", "hint")
 
             actions = QWidget()
             actions_layout = QHBoxLayout(actions)
@@ -428,17 +395,17 @@ class TwoArtistsDialog(QDialog):
 
         if self._comparison_mode == "artist_vs_alias":
             title = QLabel(f'האם האמן "{self._primary_artist_name}" הוא כינוי לאמן "{self._alias_owner_name}"?')
-            title.setStyleSheet("font-size: 16px; font-weight: 800; color: #1c355e;")
+            title.setProperty("cssClass", "sectionTitle")
             title.setWordWrap(True)
             root.addWidget(title)
         else:
             title = QLabel("מי האמן המקורי?")
-            title.setStyleSheet("font-size: 16px; font-weight: 800; color: #1c355e;")
+            title.setProperty("cssClass", "sectionTitle")
             root.addWidget(title)
 
         if self._reason:
             reason_lbl = QLabel(f"סיבת הדמיון: {self._reason}")
-            reason_lbl.setStyleSheet("font-size: 12px; color: #666;")
+            reason_lbl.setProperty("cssClass", "hint")
             reason_lbl.setWordWrap(True)
             root.addWidget(reason_lbl)
 
@@ -449,8 +416,8 @@ class TwoArtistsDialog(QDialog):
         self.group.addButton(self.rb_a)
         self.group.addButton(self.rb_b)
 
-        self.rb_a.setStyleSheet("font-size: 14px; padding: 6px;")
-        self.rb_b.setStyleSheet("font-size: 14px; padding: 6px;")
+        self.rb_a.setStyleSheet("padding: 6px;")
+        self.rb_b.setStyleSheet("padding: 6px;")
 
         if self._comparison_mode == "artist_vs_alias":
             self.rb_a.setText("כן")
@@ -460,11 +427,9 @@ class TwoArtistsDialog(QDialog):
         root.addWidget(self.rb_b)
 
         self.ignore_checkbox = QCheckBox("לא לכלול יותר את הדמיון הזה (לא לשאול שוב על הצמד הזה)")
-        self.ignore_checkbox.setStyleSheet("font-size: 13px; padding: 4px;")
         root.addWidget(self.ignore_checkbox)
 
         self.split_group = QGroupBox("פיצול לשני אמנים (רק כשיש מילים נוספות שלא תואמות)")
-        self.split_group.setStyleSheet("QGroupBox { font-weight: 700; }")
         split_layout = QGridLayout(self.split_group)
         split_layout.setHorizontalSpacing(10)
         split_layout.setVerticalSpacing(8)
@@ -494,7 +459,7 @@ class TwoArtistsDialog(QDialog):
         split_layout.addWidget(self.split_b_edit, 1, 1)
 
         split_hint = QLabel("בפיצול: יימחקו שני השמות הקודמים ויישארו רק שני השמות המתוקנים כאמנים נפרדים.")
-        split_hint.setStyleSheet("font-size: 12px; color:#555;")
+        split_hint.setProperty("cssClass", "hint")
         split_hint.setWordWrap(True)
         split_layout.addWidget(split_hint, 2, 0, 1, 2)
 
@@ -508,16 +473,14 @@ class TwoArtistsDialog(QDialog):
         root.addWidget(self.split_group)
 
         fix_box = QGroupBox("תיקון שם (אופציונלי)")
-        fix_box.setStyleSheet("QGroupBox { font-weight: 700; }")
         fix_layout = QVBoxLayout(fix_box)
 
         self.fix_edit = QLineEdit()
         self.fix_edit.setPlaceholderText("אם תרצה/י, כתוב/כתבי כאן שם אמן מתוקן חדש…")
-        self.fix_edit.setStyleSheet("background:#fff; font-size:13px; padding:6px;")
         fix_layout.addWidget(self.fix_edit)
 
         fix_hint = QLabel("אם ממלאים שם מתוקן: ייווצר אמן חדש בשם הזה, ושני השמות יהפכו לכינויים שלו.")
-        fix_hint.setStyleSheet("font-size: 12px; color:#555;")
+        fix_hint.setProperty("cssClass", "hint")
         fix_hint.setWordWrap(True)
         fix_layout.addWidget(fix_hint)
 
@@ -557,38 +520,22 @@ class ArtistRowWidget(QWidget):
 
         self.checkbox = QCheckBox()
         self.checkbox.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.checkbox.setStyleSheet("""
-            QCheckBox { background: transparent; border: none; padding: 0px; margin: 0px; }
-            QCheckBox::indicator { width: 16px; height: 16px; }
-        """)
 
         self.name_label = QLabel(f"  {artist_name}")
         self.name_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.name_label.setStyleSheet("QLabel { font-size: 14px; color: #1c355e; font-weight: 650; }")
+        self.name_label.setStyleSheet("font-weight: 650;")
 
         def tool_btn(text: str, tooltip: str) -> QToolButton:
             b = QToolButton()
             b.setText(text)
             b.setToolTip(tooltip)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
-            b.setStyleSheet("""
-                QToolButton {
-                    border: 1px solid #d0d7e2;
-                    background: #f6f8fb;
-                    border-radius: 8px;
-                    padding: 4px 8px;
-                    font-size: 13px;
-                    min-width: 28px;
-                    min-height: 24px;
-                }
-                QToolButton:hover { background: #e7eef7; }
-            """)
             return b
 
         self.aliases_btn = tool_btn("כינויים", "ניהול תת-שמות/כינויים לאמן")
         self.edit_btn = tool_btn("✎", "עריכת שם האמן")
         self.delete_btn = tool_btn("🗑", "מחיקת האמן")
-        self.delete_btn.setStyleSheet(self.delete_btn.styleSheet() + "QToolButton:hover { background: #ffe5e5; }")
+        self.delete_btn.setProperty("cssClass", "danger")
 
         self.aliases_btn.clicked.connect(lambda: self.aliasesRequested.emit(self.artist_name))
         self.edit_btn.clicked.connect(lambda: self.editRequested.emit(self.artist_name))
@@ -600,13 +547,7 @@ class ArtistRowWidget(QWidget):
         layout.addWidget(self.edit_btn, 0, Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.delete_btn, 0, Qt.AlignmentFlag.AlignVCenter)
 
-        self.setStyleSheet("""
-            QWidget {
-                background: #ffffff;
-                border: 1px solid #d7deea;
-                border-radius: 10px;
-            }
-        """)
+        self.setObjectName("artistItemWidget")
 
 
 class ArtistsTab(QWidget):
@@ -647,30 +588,28 @@ class ArtistsTab(QWidget):
         root.setContentsMargins(10, 10, 10, 10)
 
         header = QLabel("רשימת אמנים")
-        header.setStyleSheet("font-size: 22px; font-weight: 800; color: #1c355e;")
+        header.setProperty("cssClass", "pageTitle")
         root.addWidget(header)
 
         hint = QLabel("לכל אמן אפשר להגדיר כינויים (תת-שמות). בהמשך נשתמש בזה למיפוי שמות שירים.")
         hint.setWordWrap(True)
-        hint.setStyleSheet("color:#444; font-size: 13px;")
+        hint.setProperty("cssClass", "hint")
         root.addWidget(hint)
 
         content_row = QHBoxLayout()
         content_row.setSpacing(12)
 
         add_group = QGroupBox("הוספת אמנים")
-        add_group.setStyleSheet(self._group_style())
         add_layout = QVBoxLayout(add_group)
         add_layout.setSpacing(8)
         add_layout.setContentsMargins(10, 12, 10, 10)
 
         quick_label = QLabel("הוספה מהירה")
         quick_label.setAlignment(Qt.AlignmentFlag.AlignRight)
-        quick_label.setStyleSheet("font-size:13px; font-weight:700; color:#1c355e;")
+        quick_label.setProperty("cssClass", "labelBold")
 
         self.single_edit = HebrewLineEdit()
         self.single_edit.setPlaceholderText("שם אמן (יחיד)...")
-        self.single_edit.setStyleSheet("background:#fff; font-size:15px; padding:6px;")
         self.single_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.single_edit.returnPressed.connect(self.add_single_artist)
 
@@ -678,11 +617,7 @@ class ArtistsTab(QWidget):
         self.add_single_btn.setToolTip("הוסף אמן")
         self.add_single_btn.clicked.connect(self.add_single_artist)
         self.add_single_btn.setFixedWidth(42)
-        self.add_single_btn.setStyleSheet("""
-            QPushButton {background: #4682b4; color: #fff; border-radius: 8px; padding: 4px 0; font-size:22px; font-weight:900;}
-            QPushButton:hover {background: #1e4972;}
-            QPushButton:disabled {background: #9db5c8; color: #f3f3f3;}
-        """)
+        self.add_single_btn.setProperty("cssClass", "addBtn")
 
         single_row = QHBoxLayout()
         single_row.setSpacing(8)
@@ -691,11 +626,10 @@ class ArtistsTab(QWidget):
 
         multi_label = QLabel("הוספה מרובה")
         multi_label.setAlignment(Qt.AlignmentFlag.AlignRight)
-        multi_label.setStyleSheet("font-size:13px; font-weight:700; color:#1c355e;")
+        multi_label.setProperty("cssClass", "labelBold")
 
         self.multi_edit = QTextEdit()
         self.multi_edit.setPlaceholderText("הוספה מרובה: הדבק כאן כמה אמנים (כל שורה = אמן)")
-        self.multi_edit.setStyleSheet("background:#fff; font-size:14px; padding:6px;")
         self.multi_edit.setFixedHeight(110)
         self.multi_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
@@ -703,11 +637,7 @@ class ArtistsTab(QWidget):
         self.add_multi_btn.setToolTip("הוסף רשימה")
         self.add_multi_btn.clicked.connect(self.add_multiple_artists)
         self.add_multi_btn.setFixedWidth(42)
-        self.add_multi_btn.setStyleSheet("""
-            QPushButton {background: #4682b4; color: #fff; border-radius: 8px; padding: 4px 0; font-size:22px; font-weight:900;}
-            QPushButton:hover {background: #1e4972;}
-            QPushButton:disabled {background: #9db5c8; color: #f3f3f3;}
-        """)
+        self.add_multi_btn.setProperty("cssClass", "addBtn")
 
         multi_row = QHBoxLayout()
         multi_row.setSpacing(8)
@@ -721,60 +651,47 @@ class ArtistsTab(QWidget):
         add_layout.addLayout(multi_row)
 
         list_group = QGroupBox("האומנים בתוכנה")
-        list_group.setStyleSheet(self._group_style())
         list_layout = QVBoxLayout(list_group)
         list_layout.setSpacing(12)
 
         self.search_edit = HebrewLineEdit()
         self.search_edit.setPlaceholderText("חיפוש אמן...")
-        self.search_edit.setStyleSheet("background:#fff; font-size:14px; padding:6px;")
         self.search_edit.textChanged.connect(self.filter_artists_list)
         list_layout.addWidget(self.search_edit)
 
         self.artists_list = QListWidget()
         self.artists_list.setSelectionMode(QListWidget.SelectionMode.NoSelection)
-        self.artists_list.setStyleSheet("""
-            QListWidget {
-                border: 1px solid #d0d7e2;
-                border-radius: 10px;
-                background: #fbfcff;
-                padding: 4px;
-            }
-            QListWidget::item { border: none; }
-        """)
         self.artists_list.setSpacing(1)
         self.artists_list.setMinimumHeight(260)
         self.artists_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         list_layout.addWidget(self.artists_list)
 
         actions_group = QGroupBox("פעולות")
-        actions_group.setStyleSheet(self._group_style())
         actions_layout = QVBoxLayout(actions_group)
         actions_layout.setSpacing(10)
 
         self.delete_checked_btn = QPushButton("מחק מסומנים")
         self.delete_checked_btn.clicked.connect(self.delete_checked_artists)
-        self.delete_checked_btn.setStyleSheet(self._danger_btn_style())
+        self.delete_checked_btn.setProperty("cssClass", "danger")
 
         self.check_all_btn = QPushButton("סמן הכל")
         self.check_all_btn.clicked.connect(self.check_all_artists)
-        self.check_all_btn.setStyleSheet(self._secondary_btn_style())
+        self.check_all_btn.setProperty("cssClass", "secondary")
 
         self.uncheck_all_btn = QPushButton("בטל סימון")
         self.uncheck_all_btn.clicked.connect(self.uncheck_all_artists)
-        self.uncheck_all_btn.setStyleSheet(self._secondary_btn_style())
+        self.uncheck_all_btn.setProperty("cssClass", "secondary")
 
         self.similar_artists_btn = QPushButton("השוואת אמנים דומים")
         self.similar_artists_btn.clicked.connect(self.compare_similar_artists)
-        self.similar_artists_btn.setStyleSheet(self._secondary_btn_style())
+        self.similar_artists_btn.setProperty("cssClass", "secondary")
 
         self.import_artists_btn = QPushButton("ייבוא אמנים מהשירים בתיקייה")
         self.import_artists_btn.clicked.connect(self.import_artists_from_folder)
-        self.import_artists_btn.setStyleSheet(self._secondary_btn_style())
+        self.import_artists_btn.setProperty("cssClass", "secondary")
 
         self.toggle_english_btn = QPushButton()
         self.toggle_english_btn.clicked.connect(self.toggle_english_artists_visibility)
-        self.toggle_english_btn.setStyleSheet(self._secondary_btn_style())
 
         actions_layout.addWidget(self.toggle_english_btn)
         actions_layout.addWidget(self.delete_checked_btn)
@@ -802,34 +719,6 @@ class ArtistsTab(QWidget):
             self._apply_hidden_english_mode_on_startup()
 
         self._update_english_toggle_button_text()
-
-    def _group_style(self) -> str:
-        return """
-            QGroupBox {
-                font-weight: 700;
-                border: 1px solid #d0d7e2;
-                border-radius: 10px;
-                margin-top: 8px;
-                background: #ffffff;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 12px;
-                padding: 0 6px;
-            }
-        """
-
-    def _secondary_btn_style(self) -> str:
-        return """
-            QPushButton {background: #eef3f8; color: #1c355e; border: 1px solid #d0d7e2; border-radius: 8px; padding: 8px 16px; font-size:15px; font-weight:700;}
-            QPushButton:hover {background: #dde7f2;}
-        """
-
-    def _danger_btn_style(self) -> str:
-        return """
-            QPushButton {background: #d9534f; color: #fff; border-radius: 8px; padding: 8px 16px; font-size:15px; font-weight:800;}
-            QPushButton:hover {background: #b63f3b;}
-        """
 
     def _normalize_artist(self, name: str) -> str:
         s = name or ""
@@ -1749,36 +1638,12 @@ class ArtistsTab(QWidget):
     def _update_english_toggle_button_text(self):
         if self._english_artists_visible:
             self.toggle_english_btn.setText("הסתרת אמנים באנגלית")
-            self.toggle_english_btn.setStyleSheet("""
-                QPushButton {
-                    background: #fff4d6;
-                    color: #6a4b00;
-                    border: 1px solid #e3c97a;
-                    border-radius: 8px;
-                    padding: 8px 16px;
-                    font-size:15px;
-                    font-weight:800;
-                }
-                QPushButton:hover {
-                    background: #ffe8a3;
-                }
-            """)
+            self.toggle_english_btn.setProperty("cssClass", "warning")
         else:
             self.toggle_english_btn.setText("הצגת אמנים באנגלית")
-            self.toggle_english_btn.setStyleSheet("""
-                QPushButton {
-                    background: #dff6e4;
-                    color: #1f5c2f;
-                    border: 1px solid #9ed0a8;
-                    border-radius: 8px;
-                    padding: 8px 16px;
-                    font-size:15px;
-                    font-weight:800;
-                }
-                QPushButton:hover {
-                    background: #ccefd5;
-                }
-            """)
+            self.toggle_english_btn.setProperty("cssClass", "success")
+        self.toggle_english_btn.style().unpolish(self.toggle_english_btn)
+        self.toggle_english_btn.style().polish(self.toggle_english_btn)
 
     def _apply_hidden_english_mode_on_startup(self):
         to_hide = [name for name in list(self._artists_set) if self._is_english_artist(name)]
