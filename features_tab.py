@@ -62,6 +62,7 @@ _SILENCE_DBFS_OFFSET = 16
 _SILENCE_CHUNK_MS = 10
 _AUDIO_SIGNATURE_SAMPLE_RATIO = 0.2
 _VOCAL_METADATA_KEYWORD = "vocal"
+_VOCAL_METADATA_KEYS = ("title", "genre", "comment", "album", "description")
 _VOCAL_FILENAME_KEYWORDS = (
     "vocal",
     "ווקאלי",
@@ -70,7 +71,9 @@ _VOCAL_FILENAME_KEYWORDS = (
     "אקפלה",
     "acapella",
     "a capella",
+    "a cappella",
 )
+_MAX_UNIQUE_FILENAME_ATTEMPTS = 10000
 
 # ---------------------------------------------------------------------------
 # Styles
@@ -1860,11 +1863,7 @@ class FeaturesTab(QWidget):
             audio = MutagenFile(str(path), easy=True)
             if audio is None:
                 return False
-            keys = (
-                "title", "genre", "comment", "album",
-                "description",  # comment alias in some formats
-            )
-            for key in keys:
+            for key in _VOCAL_METADATA_KEYS:
                 for value in audio.get(key, []):
                     if _VOCAL_METADATA_KEYWORD in str(value).lower():
                         return True
@@ -1888,9 +1887,11 @@ class FeaturesTab(QWidget):
         stem = dest.stem
         suffix = dest.suffix
         counter = 1
-        while dest.exists() and counter < 10000:
+        while dest.exists() and counter < _MAX_UNIQUE_FILENAME_ATTEMPTS:
             dest = target_dir / f"{stem} ({counter}){suffix}"
             counter += 1
+        if dest.exists():
+            raise FileExistsError(f"לא ניתן ליצור שם קובץ ייחודי עבור: {filename}")
         return dest
 
     def _execute_vocal_sort(self) -> None:
