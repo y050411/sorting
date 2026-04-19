@@ -1,4 +1,5 @@
 import os
+import sys
 
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
@@ -17,7 +18,10 @@ TAB_NAMES = [
 
 
 def app_data_path(filename: str) -> str:
-    base_dir = os.path.dirname(os.path.abspath(__file__))
+    if getattr(sys, 'frozen', False):
+        base_dir = sys._MEIPASS
+    else:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_dir, filename)
 
 

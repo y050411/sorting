@@ -1,5 +1,12 @@
 import sys
 import os
+
+# Must be the first thing — detect loading-window mode before heavy imports
+if len(sys.argv) >= 2 and sys.argv[1] == "--loading-window":
+    from startup_loading_window import run_loading_window
+    run_loading_window(sys.argv[2] if len(sys.argv) > 2 else "", sys.argv[3] if len(sys.argv) > 3 else "")
+    sys.exit(0)
+
 import json
 import time
 import uuid
@@ -51,16 +58,30 @@ class ExternalLoadingManager:
         if self._process is not None:
             return
 
-        self._process = subprocess.Popen(
-            [
-                sys.executable,
-                app_data_path("startup_loading_window.py"),
-                self._status_file_path,
-                self._ready_file_path,
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        if getattr(sys, 'frozen', False):
+            # Running as EXE: launch self with --loading-window flag
+            self._process = subprocess.Popen(
+                [
+                    sys.executable,
+                    "--loading-window",
+                    self._status_file_path,
+                    self._ready_file_path,
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        else:
+            # Running as Python script: launch the script directly
+            self._process = subprocess.Popen(
+                [
+                    sys.executable,
+                    app_data_path("startup_loading_window.py"),
+                    self._status_file_path,
+                    self._ready_file_path,
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
 
     def wait_until_ready(self, timeout: float = 2.0, poll_interval: float = 0.02) -> bool:
         deadline = time.time() + timeout
