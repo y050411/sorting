@@ -1099,6 +1099,48 @@ class FeaturesTab(QWidget):
 
         include_sub = self._del_empty_scope_sub.isChecked()
 
+        # First scan to show confirmation dialog
+        empty_dirs = self._scan_empty_dirs(folder, include_sub)
+
+        if not empty_dirs:
+            QMessageBox.information(self, "תיקיות ריקות", "לא נמצאו תיקיות ריקות.")
+            return
+
+        confirm = QMessageBox.question(
+            self, "מחיקת תיקיות ריקות",
+            f"נמצאו {len(empty_dirs)} תיקיות ריקות. למחוק אותן?\n\n"
+            "הפעולה תחזור על עצמה אוטומטית עד שלא יישארו תיקיות ריקות.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        total_deleted = 0
+        all_errors: list[str] = []
+        rounds = 0
+
+        while empty_dirs:
+            rounds += 1
+            # Sort longest path first to delete deepest directories first
+            for d in sorted(empty_dirs, key=len, reverse=True):
+                try:
+                    os.rmdir(d)
+                    total_deleted += 1
+                except OSError as e:
+                    all_errors.append(f"{d}: {e}")
+
+            # Re-scan for newly-empty parent directories
+            empty_dirs = self._scan_empty_dirs(folder, include_sub)
+
+        summary = f"הושלם: נמחקו {total_deleted} תיקיות ריקות"
+        if rounds > 1:
+            summary += f" ({rounds} סבבים)"
+        summary += "."
+        if all_errors:
+            summary += "\n\nשגיאות:\n" + "\n".join(all_errors[:_MAX_MSG_ITEMS])
+        QMessageBox.information(self, "מחיקת תיקיות ריקות", summary)
+
+    def _scan_empty_dirs(self, folder: str, include_sub: bool) -> list[str]:
         empty_dirs: list[str] = []
         if include_sub:
             # Walk bottom-up so nested empty dirs are found after their children are removed
@@ -1117,33 +1159,7 @@ class FeaturesTab(QWidget):
                             empty_dirs.append(entry.path)
             except OSError:
                 pass
-
-        if not empty_dirs:
-            QMessageBox.information(self, "תיקיות ריקות", "לא נמצאו תיקיות ריקות.")
-            return
-
-        confirm = QMessageBox.question(
-            self, "מחיקת תיקיות ריקות",
-            f"נמצאו {len(empty_dirs)} תיקיות ריקות. למחוק אותן?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if confirm != QMessageBox.StandardButton.Yes:
-            return
-
-        deleted = 0
-        del_errors: list[str] = []
-        # Sort longest path first to delete deepest directories first
-        for d in sorted(empty_dirs, key=len, reverse=True):
-            try:
-                os.rmdir(d)
-                deleted += 1
-            except OSError as e:
-                del_errors.append(f"{d}: {e}")
-
-        summary = f"הושלם: נמחקו {deleted} מתוך {len(empty_dirs)} תיקיות ריקות."
-        if del_errors:
-            summary += "\n\nשגיאות:\n" + "\n".join(del_errors[:_MAX_MSG_ITEMS])
-        QMessageBox.information(self, "מחיקת תיקיות ריקות", summary)
+        return empty_dirs
 
     # =========================================================================
     # Option 2 – Add artist name
