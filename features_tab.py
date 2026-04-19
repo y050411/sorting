@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import hashlib
 from pathlib import Path
 
@@ -7,7 +8,7 @@ from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QCheckBox, QMessageBox, QRadioButton, QButtonGroup,
     QFrame, QInputDialog, QDialog, QTextEdit, QDialogButtonBox, QScrollArea,
-    QProgressDialog,
+    QProgressDialog, QFileDialog,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
@@ -290,6 +291,115 @@ class FeaturesTab(QWidget):
         self._dup_signature_btn.setStyleSheet(_BTN_PRIMARY)
         self._dup_signature_btn.clicked.connect(self._delete_duplicates_by_signature)
         tl.addWidget(self._dup_signature_btn)
+
+        # ── "Empty source to target" button + options ─────────────────
+        hr_tools1 = QFrame()
+        hr_tools1.setFrameShape(QFrame.Shape.HLine)
+        hr_tools1.setStyleSheet("border: none; background: #c3d5ee; max-height: 1px;")
+        tl.addWidget(hr_tools1)
+
+        self._move_to_target_btn = QPushButton("ריקון תיקיית מקור לתיקיית יעד")
+        self._move_to_target_btn.setStyleSheet(_BTN_PRIMARY)
+        self._move_to_target_btn.clicked.connect(self._move_source_to_target)
+        tl.addWidget(self._move_to_target_btn)
+
+        self._move_target_widget = QWidget()
+        self._move_target_widget.setStyleSheet("QWidget { background: transparent; border: none; }")
+        move_layout = QVBoxLayout(self._move_target_widget)
+        move_layout.setContentsMargins(4, 2, 4, 2)
+        move_layout.setSpacing(6)
+
+        target_row = QHBoxLayout()
+        target_row.setSpacing(8)
+        target_lbl = QLabel("תיקיית יעד:")
+        target_lbl.setStyleSheet(_LBL_SMALL)
+        self._move_target_path = HebrewLineEdit()
+        self._move_target_path.setPlaceholderText("הכנס נתיב יעד...")
+        self._move_target_path.setStyleSheet(_INPUT_STYLE)
+        self._move_target_browse_btn = QPushButton("עיון...")
+        self._move_target_browse_btn.setStyleSheet("""
+            QPushButton {background: #4682b4; color: #fff; border-radius: 6px; padding: 5px 12px; font-size:13px;}
+            QPushButton:hover {background: #1e4972;}
+        """)
+        self._move_target_browse_btn.clicked.connect(self._browse_move_target)
+        target_row.addWidget(target_lbl)
+        target_row.addWidget(self._move_target_path, 1)
+        target_row.addWidget(self._move_target_browse_btn)
+        move_layout.addLayout(target_row)
+
+        move_scope_row = QHBoxLayout()
+        move_scope_row.setSpacing(12)
+        self._move_scope_grp = QButtonGroup(self)
+        self._move_scope_main = QRadioButton("תיקייה ראשית בלבד")
+        self._move_scope_sub = QRadioButton("כולל תתי-תיקיות")
+        self._move_scope_main.setChecked(True)
+        for rb in (self._move_scope_main, self._move_scope_sub):
+            rb.setStyleSheet("font-size: 13px; color: #333;")
+            self._move_scope_grp.addButton(rb)
+        move_scope_row.addWidget(self._move_scope_main)
+        move_scope_row.addWidget(self._move_scope_sub)
+        move_scope_row.addStretch()
+        move_layout.addLayout(move_scope_row)
+
+        self._move_exec_btn = QPushButton("העבר קבצים")
+        self._move_exec_btn.setStyleSheet("""
+            QPushButton {
+                background: #2e86c1; color: #fff; border-radius: 8px;
+                padding: 7px 24px; font-size: 14px; font-weight: 600;
+            }
+            QPushButton:hover { background: #1a5276; }
+        """)
+        self._move_exec_btn.clicked.connect(self._execute_move_source_to_target)
+        move_layout.addWidget(self._move_exec_btn, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        self._move_target_widget.setVisible(False)
+        tl.addWidget(self._move_target_widget)
+
+        # ── "Delete empty folders" button + options ───────────────────
+        hr_tools2 = QFrame()
+        hr_tools2.setFrameShape(QFrame.Shape.HLine)
+        hr_tools2.setStyleSheet("border: none; background: #c3d5ee; max-height: 1px;")
+        tl.addWidget(hr_tools2)
+
+        self._del_empty_btn = QPushButton("מחיקת תיקיות ריקות")
+        self._del_empty_btn.setStyleSheet(_BTN_PRIMARY)
+        self._del_empty_btn.clicked.connect(self._delete_empty_folders)
+        tl.addWidget(self._del_empty_btn)
+
+        self._del_empty_widget = QWidget()
+        self._del_empty_widget.setStyleSheet("QWidget { background: transparent; border: none; }")
+        del_empty_layout = QVBoxLayout(self._del_empty_widget)
+        del_empty_layout.setContentsMargins(4, 2, 4, 2)
+        del_empty_layout.setSpacing(6)
+
+        del_empty_scope_row = QHBoxLayout()
+        del_empty_scope_row.setSpacing(12)
+        self._del_empty_scope_grp = QButtonGroup(self)
+        self._del_empty_scope_main = QRadioButton("תיקייה ראשית בלבד")
+        self._del_empty_scope_sub = QRadioButton("כולל תתי-תיקיות")
+        self._del_empty_scope_main.setChecked(True)
+        for rb in (self._del_empty_scope_main, self._del_empty_scope_sub):
+            rb.setStyleSheet("font-size: 13px; color: #333;")
+            self._del_empty_scope_grp.addButton(rb)
+        del_empty_scope_row.addWidget(self._del_empty_scope_main)
+        del_empty_scope_row.addWidget(self._del_empty_scope_sub)
+        del_empty_scope_row.addStretch()
+        del_empty_layout.addLayout(del_empty_scope_row)
+
+        self._del_empty_exec_btn = QPushButton("מחק תיקיות ריקות")
+        self._del_empty_exec_btn.setStyleSheet("""
+            QPushButton {
+                background: #c0392b; color: #fff; border-radius: 8px;
+                padding: 7px 24px; font-size: 14px; font-weight: 600;
+            }
+            QPushButton:hover { background: #a93226; }
+        """)
+        self._del_empty_exec_btn.clicked.connect(self._execute_delete_empty_folders)
+        del_empty_layout.addWidget(self._del_empty_exec_btn, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        self._del_empty_widget.setVisible(False)
+        tl.addWidget(self._del_empty_widget)
+
         tl.addStretch()
 
         cards_row.addWidget(tools_card, 1)
@@ -699,7 +809,7 @@ class FeaturesTab(QWidget):
         layout.setSpacing(12)
 
         # ── Header ─────────────────────────────────────────────────────
-        header = QLabel("בחר שיר לשמירה בכל קבוצה — כל השאר יימחקו")
+        header = QLabel("בחר שירים לשמירה בכל קבוצה — כל השאר יימחקו")
         header.setStyleSheet(
             "font-size: 16px; font-weight: 700; color: #1c355e; padding: 0 0 4px 0;"
         )
@@ -721,7 +831,7 @@ class FeaturesTab(QWidget):
         container_layout.setSpacing(14)
         container_layout.setContentsMargins(0, 0, 8, 0)
 
-        keep_choices: list[tuple[QButtonGroup, list[tuple[QRadioButton, Path]]]] = []
+        keep_choices: list[list[tuple[QCheckBox, Path]]] = []
         for idx, paths in enumerate(duplicates, start=1):
             # ── Group card ─────────────────────────────────────────────
             card = QFrame()
@@ -748,9 +858,7 @@ class FeaturesTab(QWidget):
             row_layout.setSpacing(18)
             row_layout.setContentsMargins(0, 0, 0, 0)
 
-            group_radio = QButtonGroup(dlg)
-            group_radio.setExclusive(True)
-            radio_path_pairs: list[tuple[QRadioButton, Path]] = []
+            cb_path_pairs: list[tuple[QCheckBox, Path]] = []
             # ברירת המחדל לשמירה: שם קובץ קצר ביותר, ואז שם (ללא תלות רישיות), ואז נתיב.
             keep_path = min(paths, key=lambda p: (len(p.name), p.name.casefold(), p.as_posix()))
 
@@ -797,15 +905,14 @@ class FeaturesTab(QWidget):
                     )
                 item_layout.addWidget(art_label, alignment=Qt.AlignmentFlag.AlignHCenter)
 
-                rb = QRadioButton(p.name)
-                rb.setToolTip(str(p))
-                rb.setChecked(p == keep_path)
-                rb.setStyleSheet(
+                cb = QCheckBox(p.name)
+                cb.setToolTip(str(p))
+                cb.setChecked(p == keep_path)
+                cb.setStyleSheet(
                     "font-size: 13px; color: #1c355e; font-weight: 500; "
                     "border: none; padding: 2px 0;"
                 )
-                group_radio.addButton(rb)
-                item_layout.addWidget(rb)
+                item_layout.addWidget(cb)
 
                 # Show relative path from the base folder
                 try:
@@ -821,12 +928,12 @@ class FeaturesTab(QWidget):
                 item_layout.addWidget(path_label)
 
                 row_layout.addWidget(item_frame)
-                radio_path_pairs.append((rb, p))
+                cb_path_pairs.append((cb, p))
 
             row_layout.addStretch()
             card_layout.addWidget(row_widget)
             container_layout.addWidget(card)
-            keep_choices.append((group_radio, radio_path_pairs))
+            keep_choices.append(cb_path_pairs)
 
         container_layout.addStretch()
         scroll.setWidget(container)
@@ -867,16 +974,16 @@ class FeaturesTab(QWidget):
 
         to_delete: list[Path] = []
         missing_selection = False
-        for group_radio, options in keep_choices:
-            keep_button = group_radio.checkedButton()
-            if keep_button is None:
+        for options in keep_choices:
+            checked_any = any(cb.isChecked() for cb, _ in options)
+            if not checked_any:
                 missing_selection = True
                 continue
-            for rb, p in options:
-                if rb is not keep_button:
+            for cb, p in options:
+                if not cb.isChecked():
                     to_delete.append(p)
         if missing_selection:
-            QMessageBox.warning(self, "כפילויות", "יש לבחור שיר לשמירה בכל קבוצה לפני מחיקה.")
+            QMessageBox.warning(self, "כפילויות", "יש לסמן לפחות שיר אחד לשמירה בכל קבוצה לפני מחיקה.")
             return
 
         if not to_delete:
@@ -898,6 +1005,145 @@ class FeaturesTab(QWidget):
         if errors:
             summary += "\n\nשגיאות קריאה:\n" + "\n".join(errors[:_MAX_MSG_ITEMS])
         QMessageBox.information(self, "מחיקת כפילויות", summary)
+
+    # =========================================================================
+    # Move source folder contents to target folder
+    # =========================================================================
+
+    def _move_source_to_target(self) -> None:
+        self._move_target_widget.setVisible(not self._move_target_widget.isVisible())
+
+    def _browse_move_target(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "בחר תיקיית יעד")
+        if folder:
+            self._move_target_path.setText(folder)
+
+    def _execute_move_source_to_target(self) -> None:
+        source = self._get_folder()
+        if not source or not os.path.isdir(source):
+            QMessageBox.warning(self, "שגיאה", "יש לבחור תיקיית מקור תחילה.")
+            return
+
+        target = self._move_target_path.text().strip()
+        if not target:
+            QMessageBox.warning(self, "שגיאה", "יש להכניס נתיב תיקיית יעד.")
+            return
+
+        if not os.path.isdir(target):
+            reply = QMessageBox.question(
+                self, "תיקיית יעד",
+                f"תיקיית היעד לא קיימת:\n{target}\n\nליצור אותה?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+            try:
+                os.makedirs(target, exist_ok=True)
+            except OSError as e:
+                QMessageBox.warning(self, "שגיאה", f"לא ניתן ליצור את התיקייה:\n{e}")
+                return
+
+        include_sub = self._move_scope_sub.isChecked()
+        if include_sub:
+            files = self._list_audio_files_recursive(source)
+        else:
+            files = self._list_audio_files_flat(source)
+
+        if not files:
+            QMessageBox.information(self, "העברת קבצים", "לא נמצאו קבצי שמע בתיקיית המקור.")
+            return
+
+        confirm = QMessageBox.question(
+            self, "העברת קבצים",
+            f"להעביר {len(files)} קבצי שמע לתיקיית היעד?\n{target}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        moved = 0
+        move_errors: list[str] = []
+        for f in files:
+            dest = Path(target) / f.name
+            # Handle name collision
+            if dest.exists():
+                stem = dest.stem
+                suffix = dest.suffix
+                counter = 1
+                while dest.exists() and counter < 10000:
+                    dest = Path(target) / f"{stem} ({counter}){suffix}"
+                    counter += 1
+            try:
+                shutil.move(str(f), str(dest))
+                moved += 1
+            except OSError as e:
+                move_errors.append(f"{f.name}: {e}")
+
+        summary = f"הושלם: הועברו {moved} מתוך {len(files)} קבצים."
+        if move_errors:
+            summary += "\n\nשגיאות:\n" + "\n".join(move_errors[:_MAX_MSG_ITEMS])
+        QMessageBox.information(self, "העברת קבצים", summary)
+
+    # =========================================================================
+    # Delete empty folders
+    # =========================================================================
+
+    def _delete_empty_folders(self) -> None:
+        self._del_empty_widget.setVisible(not self._del_empty_widget.isVisible())
+
+    def _execute_delete_empty_folders(self) -> None:
+        folder = self._get_folder()
+        if not folder or not os.path.isdir(folder):
+            QMessageBox.warning(self, "שגיאה", "יש לבחור תיקייה תחילה.")
+            return
+
+        include_sub = self._del_empty_scope_sub.isChecked()
+
+        empty_dirs: list[str] = []
+        if include_sub:
+            # Walk bottom-up so nested empty dirs are found after their children are removed
+            for dirpath, _, _ in os.walk(folder, topdown=False):
+                # Skip the root source folder itself
+                if dirpath == folder:
+                    continue
+                if not os.listdir(dirpath):
+                    empty_dirs.append(dirpath)
+        else:
+            # Only check immediate subdirectories
+            try:
+                for entry in os.scandir(folder):
+                    if entry.is_dir(follow_symlinks=False):
+                        if not os.listdir(entry.path):
+                            empty_dirs.append(entry.path)
+            except OSError:
+                pass
+
+        if not empty_dirs:
+            QMessageBox.information(self, "תיקיות ריקות", "לא נמצאו תיקיות ריקות.")
+            return
+
+        confirm = QMessageBox.question(
+            self, "מחיקת תיקיות ריקות",
+            f"נמצאו {len(empty_dirs)} תיקיות ריקות. למחוק אותן?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        deleted = 0
+        del_errors: list[str] = []
+        # Sort longest path first to delete deepest directories first
+        for d in sorted(empty_dirs, key=len, reverse=True):
+            try:
+                os.rmdir(d)
+                deleted += 1
+            except OSError as e:
+                del_errors.append(f"{d}: {e}")
+
+        summary = f"הושלם: נמחקו {deleted} מתוך {len(empty_dirs)} תיקיות ריקות."
+        if del_errors:
+            summary += "\n\nשגיאות:\n" + "\n".join(del_errors[:_MAX_MSG_ITEMS])
+        QMessageBox.information(self, "מחיקת תיקיות ריקות", summary)
 
     # =========================================================================
     # Option 2 – Add artist name
