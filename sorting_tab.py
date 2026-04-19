@@ -127,10 +127,32 @@ class OptionBtn(QPushButton):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedHeight(32)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setProperty("cssClass", "optionBtn")
+        self._apply_style()
+        self.toggled.connect(lambda: self._apply_style())
+
+    def _apply_style(self):
+        if self.isChecked():
+            self.setStyleSheet("""
+                QPushButton {
+                    background: #dbeafe; color: #1e40af;
+                    border: 1.5px solid #3b82f6; border-radius: 8px;
+                    font-size: 13px; font-weight: 800; padding: 2px 10px;
+                }
+                QPushButton:hover { background: #bfdbfe; }
+            """)
+        else:
+            self.setStyleSheet("""
+                QPushButton {
+                    background: #ffffff; color: #475569;
+                    border: 1.5px solid #e2e8f0; border-radius: 8px;
+                    font-size: 13px; font-weight: 700; padding: 2px 10px;
+                }
+                QPushButton:hover { background: #f8fafc; border-color: #94a3b8; }
+            """)
 
     def setChecked(self, v):
         super().setChecked(v)
+        self._apply_style()
 
 
 # ─── Step row with label + indicator + option buttons ───
@@ -147,7 +169,7 @@ class StepRow(QWidget):
         lbl = QLabel(label)
         lbl.setFixedWidth(120)
         lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        lbl.setProperty("cssClass", "stepLabel")
+        lbl.setStyleSheet("font-size:13px; font-weight:800; color:#1e293b;")
         row.addWidget(lbl)
 
         self.opts: list[OptionBtn] = []
@@ -188,8 +210,17 @@ class ScannedArtistRow(QWidget):
         self._expanded = False
         self._is_excluded = is_excluded
 
-        self.setObjectName("scannedArtistRowExcluded" if is_excluded else "scannedArtistRow")
+        self.setObjectName("scannedArtistRow")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+
+        bg = "#fffbeb" if is_excluded else "#ffffff"
+        bc = "#fde68a" if is_excluded else "#f1f5f9"
+        self.setStyleSheet(f"""
+            QWidget#scannedArtistRow {{
+                background: {bg}; border: 1px solid {bc};
+                border-radius: 8px; margin: 0; padding: 0;
+            }}
+        """)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(8, 4, 8, 4)
@@ -204,24 +235,50 @@ class ScannedArtistRow(QWidget):
             self.expand_btn = QPushButton("◀")
             self.expand_btn.setFixedSize(22, 22)
             self.expand_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            self.expand_btn.setProperty("cssClass", "expandBtn")
+            self.expand_btn.setStyleSheet("""
+                QPushButton {
+                    background: #f1f5f9; border: 1px solid #e2e8f0;
+                    border-radius: 6px; font-size: 9px; color: #64748b; padding: 0;
+                }
+                QPushButton:hover { background: #e2e8f0; }
+            """)
             self.expand_btn.clicked.connect(self._toggle_expand)
             top.addWidget(self.expand_btn, 0, Qt.AlignmentFlag.AlignVCenter)
 
         self.name_label = QLabel(artist_name)
         name_color = "#92400e" if is_excluded else "#1e293b"
-        self.name_label.setStyleSheet(f"font-size: 13px; font-weight: 800; color: {name_color}; background: transparent; border: none;")
+        self.name_label.setStyleSheet(f"""
+            font-size: 13px; font-weight: 800; color: {name_color};
+            background: transparent; border: none; padding: 0 4px;
+        """)
 
         self.count_label = QLabel(f"({len(songs)} שירים)")
-        self.count_label.setProperty("cssClass", "hint")
+        self.count_label.setStyleSheet("""
+            font-size: 11px; font-weight: 700; color: #94a3b8;
+            background: transparent; border: none;
+        """)
 
         if is_excluded:
             self.action_btn = QPushButton("החזר למיון")
-            self.action_btn.setProperty("cssClass", "restoreToSort")
+            self.action_btn.setStyleSheet("""
+                QPushButton {
+                    background: #dcfce7; color: #166534;
+                    border: 1px solid #bbf7d0; border-radius: 6px;
+                    padding: 2px 8px; font-size: 11px; font-weight: 800;
+                }
+                QPushButton:hover { background: #bbf7d0; }
+            """)
             self.action_btn.clicked.connect(lambda: self.restoreRequested.emit(self.artist_name))
         else:
             self.action_btn = QPushButton("הסר מהמיון")
-            self.action_btn.setProperty("cssClass", "removeFromSort")
+            self.action_btn.setStyleSheet("""
+                QPushButton {
+                    background: #fef2f2; color: #dc2626;
+                    border: 1px solid #fecaca; border-radius: 6px;
+                    padding: 2px 8px; font-size: 11px; font-weight: 800;
+                }
+                QPushButton:hover { background: #fecaca; }
+            """)
             self.action_btn.clicked.connect(lambda: self.removeRequested.emit(self.artist_name))
 
         self.action_btn.setFixedHeight(24)
@@ -235,6 +292,12 @@ class ScannedArtistRow(QWidget):
         # songs list (hidden)
         self.songs_widget = QWidget()
         self.songs_widget.setObjectName("songsContainer")
+        self.songs_widget.setStyleSheet("""
+            QWidget#songsContainer {
+                background: #f8fafc; border: 1px solid #e2e8f0;
+                border-radius: 6px; padding: 2px;
+            }
+        """)
         songs_layout = QVBoxLayout(self.songs_widget)
         songs_layout.setContentsMargins(10, 4, 6, 4)
         songs_layout.setSpacing(1)
@@ -242,7 +305,10 @@ class ScannedArtistRow(QWidget):
         for song_path in songs:
             song_name = os.path.splitext(os.path.basename(song_path))[0]
             song_label = QLabel(f"♪  {song_name}")
-            song_label.setProperty("cssClass", "hint")
+            song_label.setStyleSheet("""
+                font-size: 11px; font-weight: 600; color: #64748b;
+                background: transparent; border: none; padding: 1px 0;
+            """)
             song_label.setToolTip(song_path)
             songs_layout.addWidget(song_label)
 
@@ -277,6 +343,13 @@ class UnrecognizedFileRow(QWidget):
         self.filepath = filepath
         self.setObjectName("unrecFileRow")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet("""
+            QWidget#unrecFileRow {
+                background: #ffffff; border: 1px solid #e9d5ff;
+                border-radius: 7px; margin: 0; padding: 0;
+            }
+            QWidget#unrecFileRow:hover { background: #faf5ff; }
+        """)
 
         row = QHBoxLayout(self)
         row.setContentsMargins(8, 4, 8, 4)
@@ -284,13 +357,22 @@ class UnrecognizedFileRow(QWidget):
 
         song_name = os.path.splitext(os.path.basename(filepath))[0]
         lbl = QLabel(f"♪  {song_name}")
-        lbl.setStyleSheet("font-size: 12px; font-weight: 700; color: #4c1d95; background: transparent; border: none;")
+        lbl.setStyleSheet("""
+            font-size: 12px; font-weight: 700; color: #4c1d95;
+            background: transparent; border: none; padding: 0;
+        """)
         lbl.setToolTip(filepath)
 
         btn = QPushButton("הקצה אמן")
         btn.setFixedHeight(24)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setProperty("cssClass", "assignBtn")
+        btn.setStyleSheet("""
+            QPushButton {
+                background: #7c3aed; color: #fff; border: none; border-radius: 6px;
+                padding: 2px 8px; font-size: 11px; font-weight: 800;
+            }
+            QPushButton:hover { background: #6d28d9; }
+        """)
         btn.clicked.connect(lambda: self.assignRequested.emit(self.filepath))
 
         row.addWidget(lbl, 1, Qt.AlignmentFlag.AlignVCenter)
@@ -306,22 +388,32 @@ class MultiArtistChooserDialog(QDialog):
         self.setWindowTitle("בחר אמנים")
         self.setMinimumWidth(340)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        self.setStyleSheet("""
+            QDialog { background: #f8fafc; }
+            QLabel { background: transparent; color: #1e293b; }
+            QCheckBox { font-size: 13px; font-weight: 700; color: #1e293b; }
+            QPushButton {
+                min-width: 80px; min-height: 30px; border-radius: 8px;
+                font-size: 13px; font-weight: 800; padding: 4px 12px;
+            }
+        """)
+
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
         layout.setContentsMargins(16, 16, 16, 16)
 
         title = QLabel("<b>הקובץ שייך לכמה אמנים:</b>")
-        title.setProperty("cssClass", "sectionTitle")
+        title.setStyleSheet("font-size: 13px; font-weight: 900; color: #1e293b;")
         layout.addWidget(title)
 
         fname_label = QLabel(f"📄  {filename}")
-        fname_label.setProperty("cssClass", "hint")
+        fname_label.setStyleSheet("font-size: 11px; color: #64748b;")
         fname_label.setWordWrap(True)
         layout.addWidget(fname_label)
 
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setProperty("cssClass", "separator")
+        sep.setStyleSheet("background: #e2e8f0; max-height: 1px;")
         layout.addWidget(sep)
 
         self._checkboxes: list[tuple[str, QCheckBox]] = []
@@ -336,6 +428,12 @@ class MultiArtistChooserDialog(QDialog):
         )
         buttons.button(QDialogButtonBox.StandardButton.Ok).setText("אישור")
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("דלג")
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setStyleSheet(
+            "background: #3b82f6; color: #fff; border: none;"
+        )
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setStyleSheet(
+            "background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;"
+        )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -353,39 +451,54 @@ class AssignArtistDialog(QDialog):
         self.setWindowTitle("הקצאת אמן לשיר")
         self.setMinimumWidth(380)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        self.setStyleSheet("""
+            QDialog { background: #f8fafc; }
+            QLabel { background: transparent; color: #1e293b; }
+            QPushButton {
+                min-width: 80px; min-height: 30px; border-radius: 8px;
+                font-size: 13px; font-weight: 800; padding: 4px 12px;
+            }
+        """)
 
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
         layout.setContentsMargins(16, 16, 16, 16)
 
         title = QLabel("<b>הקצה אמן לשיר לא מזוהה:</b>")
-        title.setProperty("cssClass", "labelBold")
+        title.setStyleSheet("font-size: 13px; font-weight: 900; color: #1e293b;")
         layout.addWidget(title)
 
         fname_label = QLabel(f"📄  {filename}")
-        fname_label.setProperty("cssClass", "hint")
+        fname_label.setStyleSheet("font-size: 11px; color: #64748b;")
         fname_label.setWordWrap(True)
         layout.addWidget(fname_label)
 
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setProperty("cssClass", "separator")
+        sep.setStyleSheet("background: #e2e8f0; max-height: 1px;")
         layout.addWidget(sep)
 
         lbl = QLabel("בחר אמן מהרשימה או הקלד שם חדש:")
-        lbl.setProperty("cssClass", "labelSmall")
+        lbl.setStyleSheet("font-size: 12px; color: #475569;")
         layout.addWidget(lbl)
 
         self._combo = QComboBox()
         self._combo.setEditable(True)
         self._combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self._combo.setStyleSheet("""
+            QComboBox {
+                background: #fff; border: 1.5px solid #e2e8f0; border-radius: 8px;
+                padding: 4px 8px; font-size: 13px; font-weight: 700; color: #1e293b;
+            }
+            QComboBox:focus { border: 1.5px solid #3b82f6; }
+        """)
         self._combo.addItem("")
         for a in sorted(existing_artists):
             self._combo.addItem(a)
         layout.addWidget(self._combo)
 
         hint = QLabel("💡 אם תקליד שם שאינו ברשימה, הוא יתווסף כאמן חדש.")
-        hint.setProperty("cssClass", "hint")
+        hint.setStyleSheet("font-size: 11px; color: #94a3b8;")
         hint.setWordWrap(True)
         layout.addWidget(hint)
 
@@ -394,6 +507,12 @@ class AssignArtistDialog(QDialog):
         )
         buttons.button(QDialogButtonBox.StandardButton.Ok).setText("אישור")
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("דלג")
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setStyleSheet(
+            "background: #3b82f6; color: #fff; border: none;"
+        )
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setStyleSheet(
+            "background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;"
+        )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -411,35 +530,52 @@ class AlbumNoCommonArtistDialog(QDialog):
         self.setWindowTitle("אלבום ללא אמן משותף")
         self.setMinimumWidth(420)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        self.setStyleSheet("""
+            QDialog { background: #f8fafc; }
+            QLabel { background: transparent; color: #1e293b; }
+            QPushButton {
+                min-height: 30px; border-radius: 8px;
+                font-size: 13px; font-weight: 800; padding: 4px 12px;
+            }
+        """)
 
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
         layout.setContentsMargins(16, 16, 16, 16)
 
         title = QLabel(f"<b>האלבום \"{album_name}\" — אין אמן משותף לכל השירים</b>")
-        title.setProperty("cssClass", "labelBold")
+        title.setStyleSheet("font-size: 13px; font-weight: 900; color: #1e293b;")
         title.setWordWrap(True)
         layout.addWidget(title)
 
         songs_lbl = QLabel(f"הגדר מה לעשות עם {len(songs)} שיר/ים באלבום זה:")
-        songs_lbl.setProperty("cssClass", "labelSmall")
+        songs_lbl.setStyleSheet("font-size: 12px; color: #475569;")
         layout.addWidget(songs_lbl)
 
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setProperty("cssClass", "separator")
+        sep.setStyleSheet("background: #e2e8f0; max-height: 1px;")
         layout.addWidget(sep)
 
         self._choice = "sort_artists"  # default
 
         btn_sort = QPushButton("מיין כל שיר לתיקיית האמן שלו")
-        btn_sort.setProperty("cssClass", "primary")
+        btn_sort.setStyleSheet("""
+            QPushButton { background: #dbeafe; color: #1e40af; border: 1.5px solid #3b82f6; }
+            QPushButton:hover { background: #bfdbfe; }
+        """)
 
         btn_folder = QPushButton("הכנס את כל האלבום לתיקייה מסוימת...")
-        btn_folder.setProperty("cssClass", "success")
+        btn_folder.setStyleSheet("""
+            QPushButton { background: #dcfce7; color: #166534; border: 1.5px solid #22c55e; }
+            QPushButton:hover { background: #bbf7d0; }
+        """)
 
         btn_skip = QPushButton("השאר במקום (אל תבצע שינוי)")
-        btn_skip.setProperty("cssClass", "warning")
+        btn_skip.setStyleSheet("""
+            QPushButton { background: #fef3c7; color: #92400e; border: 1.5px solid #f59e0b; }
+            QPushButton:hover { background: #fde68a; }
+        """)
 
         self._folder_choice: str | None = None
 
@@ -513,6 +649,16 @@ class SortingTab(QWidget):
         box.setTextFormat(Qt.TextFormat.RichText)
         box.setText(f"<div style='font-size:14px;font-weight:800;color:#1e293b;'>{text}</div>")
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        box.setStyleSheet("""
+            QMessageBox { background: #f8fafc; }
+            QMessageBox QLabel { color: #1e293b; font-size: 14px; font-weight: 800; min-width: 260px; }
+            QMessageBox QPushButton {
+                min-width: 90px; min-height: 34px; background: #3b82f6; color: white;
+                border: none; border-radius: 10px; padding: 6px 12px;
+                font-size: 13px; font-weight: 900;
+            }
+            QMessageBox QPushButton:hover { background: #2563eb; }
+        """)
         box.exec()
 
     def _show_warning(self, text: str):
@@ -523,7 +669,17 @@ class SortingTab(QWidget):
 
     # ─── main UI build ───
     def _build_ui(self):
-        self.setObjectName("sortingTabBase")
+        self.setStyleSheet("""
+            QWidget { background: #f8fafc; font-family: 'Assistant'; }
+            QLabel { background: transparent; }
+            QListWidget {
+                border: none; border-radius: 8px; background: #fafbfd;
+                padding: 2px; outline: none;
+            }
+            QListWidget::item {
+                padding: 0; border: none; margin: 1px 0; background: transparent;
+            }
+        """)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(14, 10, 14, 10)
@@ -545,14 +701,15 @@ class SortingTab(QWidget):
         # header
         tl = QVBoxLayout(); tl.setSpacing(1)
         title = QLabel("מיון שירים")
-        title.setProperty("cssClass", "pageTitle")
+        title.setStyleSheet("font-size:22px; font-weight:900; color:#0f172a;")
         subtitle = QLabel("הגדר את אפשרויות המיון ולחץ המשך לסריקה")
-        subtitle.setProperty("cssClass", "pageSubtitle")
+        subtitle.setStyleSheet("font-size:12px; font-weight:600; color:#94a3b8;")
         tl.addWidget(title); tl.addWidget(subtitle)
         col.addLayout(tl)
 
         # settings card
         card = QFrame(); card.setObjectName("settingsCard")
+        card.setStyleSheet("QFrame#settingsCard { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; }")
         cl = QVBoxLayout(card)
         cl.setContentsMargins(16, 14, 16, 14)
         cl.setSpacing(14)
@@ -579,17 +736,31 @@ class SortingTab(QWidget):
         target_lbl = QLabel("תיקיית יעד:")
         target_lbl.setFixedWidth(120)
         target_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        target_lbl.setProperty("cssClass", "stepLabel")
+        target_lbl.setStyleSheet("font-size:13px; font-weight:800; color:#1e293b;")
         tr_layout.addWidget(target_lbl)
 
         self.target_folder_edit = HebrewLineEdit()
         self.target_folder_edit.setPlaceholderText("בחר תיקיית יעד...")
         self.target_folder_edit.setFixedHeight(32)
+        self.target_folder_edit.setStyleSheet("""
+            QLineEdit {
+                background: #fff; border: 1.5px solid #e2e8f0; border-radius: 8px;
+                padding: 4px 8px; font-size: 13px; font-weight: 700; color: #1e293b;
+            }
+            QLineEdit:focus { border: 1.5px solid #3b82f6; }
+            QLineEdit:disabled { background: #f8fafc; color: #94a3b8; }
+        """)
 
         self.target_browse_btn = QPushButton("עיון...")
         self.target_browse_btn.setFixedHeight(32)
         self.target_browse_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.target_browse_btn.setProperty("cssClass", "browse")
+        self.target_browse_btn.setStyleSheet("""
+            QPushButton {
+                background: #3b82f6; color: #fff; border: none; border-radius: 8px;
+                padding: 4px 14px; font-size: 13px; font-weight: 800;
+            }
+            QPushButton:hover { background: #2563eb; }
+        """)
 
         tr_layout.addWidget(self.target_folder_edit, 1)
         tr_layout.addWidget(self.target_browse_btn, 0)
@@ -632,17 +803,31 @@ class SortingTab(QWidget):
         albums_folder_lbl = QLabel("תיקיית אלבומים:")
         albums_folder_lbl.setFixedWidth(120)
         albums_folder_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        albums_folder_lbl.setProperty("cssClass", "stepLabel")
+        albums_folder_lbl.setStyleSheet("font-size:13px; font-weight:800; color:#1e293b;")
         af_layout.addWidget(albums_folder_lbl)
 
         self.albums_folder_edit = HebrewLineEdit()
         self.albums_folder_edit.setPlaceholderText("בחר תיקיית אלבומים ייעודית...")
         self.albums_folder_edit.setFixedHeight(32)
+        self.albums_folder_edit.setStyleSheet("""
+            QLineEdit {
+                background: #fff; border: 1.5px solid #e2e8f0; border-radius: 8px;
+                padding: 4px 8px; font-size: 13px; font-weight: 700; color: #1e293b;
+            }
+            QLineEdit:focus { border: 1.5px solid #3b82f6; }
+            QLineEdit:disabled { background: #f8fafc; color: #94a3b8; }
+        """)
 
         self.albums_folder_browse_btn = QPushButton("עיון...")
         self.albums_folder_browse_btn.setFixedHeight(32)
         self.albums_folder_browse_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.albums_folder_browse_btn.setProperty("cssClass", "browse")
+        self.albums_folder_browse_btn.setStyleSheet("""
+            QPushButton {
+                background: #3b82f6; color: #fff; border: none; border-radius: 8px;
+                padding: 4px 14px; font-size: 13px; font-weight: 800;
+            }
+            QPushButton:hover { background: #2563eb; }
+        """)
 
         af_layout.addWidget(self.albums_folder_edit, 1)
         af_layout.addWidget(self.albums_folder_browse_btn, 0)
@@ -675,12 +860,12 @@ class SortingTab(QWidget):
 
         # divider + summary
         div = QFrame(); div.setFrameShape(QFrame.Shape.HLine)
-        div.setProperty("cssClass", "separator")
+        div.setStyleSheet("background: #f1f5f9; max-height: 1px;")
         cl.addWidget(div)
 
         self.summary_label = QLabel("בחר את כל ההגדרות כדי להמשיך")
         self.summary_label.setWordWrap(True)
-        self.summary_label.setObjectName("summaryLabel")
+        self.summary_label.setStyleSheet("font-size: 12px; font-weight: 700; color: #64748b;")
         cl.addWidget(self.summary_label)
 
         col.addWidget(card)
@@ -693,7 +878,18 @@ class SortingTab(QWidget):
         self.continue_btn = QPushButton("המשך לסריקה →")
         self.continue_btn.setFixedHeight(42)
         self.continue_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.continue_btn.setObjectName("continueBtn")
+        self.continue_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
+                    stop:0 #3b82f6, stop:1 #2563eb);
+                color: #fff; border: none; border-radius: 12px;
+                padding: 4px 32px; font-size: 16px; font-weight: 900;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
+                    stop:0 #2563eb, stop:1 #1d4ed8);
+            }
+        """)
 
         btn_row.addStretch()
         btn_row.addWidget(self.continue_btn)
@@ -711,23 +907,49 @@ class SortingTab(QWidget):
         # header
         h = QHBoxLayout(); h.setSpacing(8)
         t = QLabel("תוצאות סריקה")
-        t.setProperty("cssClass", "pageTitle")
+        t.setStyleSheet("font-size:22px; font-weight:900; color:#0f172a;")
 
         self.back_btn = QPushButton("← חזרה להגדרות")
         self.back_btn.setFixedHeight(34)
         self.back_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.back_btn.setObjectName("backBtn")
+        self.back_btn.setStyleSheet("""
+            QPushButton {
+                background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;
+                border-radius: 10px; padding: 4px 16px; font-size: 13px; font-weight: 800;
+            }
+            QPushButton:hover { background: #e2e8f0; }
+        """)
 
         self.scan_btn = QPushButton("סרוק שוב")
         self.scan_btn.setFixedHeight(34)
         self.scan_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.scan_btn.setObjectName("scanBtn")
+        self.scan_btn.setStyleSheet("""
+            QPushButton {
+                background: #3b82f6; color: #fff; border: none; border-radius: 10px;
+                padding: 4px 20px; font-size: 13px; font-weight: 900;
+            }
+            QPushButton:hover { background: #2563eb; }
+        """)
 
         self.sort_btn = QPushButton("▶  מיין עכשיו")
         self.sort_btn.setFixedHeight(34)
         self.sort_btn.setEnabled(True)
         self.sort_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.sort_btn.setObjectName("sortBtn")
+        self.sort_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
+                    stop:0 #22c55e, stop:1 #16a34a);
+                color: #fff; border: none; border-radius: 10px;
+                padding: 4px 20px; font-size: 13px; font-weight: 900;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
+                    stop:0 #16a34a, stop:1 #15803d);
+            }
+            QPushButton:disabled {
+                background: #e2e8f0; color: #94a3b8;
+            }
+        """)
 
         h.addWidget(t, 1)
         h.addWidget(self.back_btn)
@@ -738,7 +960,11 @@ class SortingTab(QWidget):
         # status bar
         self.status_label = QLabel("")
         self.status_label.setWordWrap(True)
-        self.status_label.setObjectName("statusLabel")
+        self.status_label.setStyleSheet("""
+            font-size: 12px; font-weight: 700; color: #475569;
+            background: #eff6ff; border: 1px solid #dbeafe;
+            border-radius: 8px; padding: 6px 12px;
+        """)
         col.addWidget(self.status_label)
 
         # body — two columns
@@ -746,13 +972,18 @@ class SortingTab(QWidget):
 
         # ── included panel ──
         inc = QFrame(); inc.setObjectName("incPanel")
+        inc.setStyleSheet("QFrame#incPanel { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; }")
         il = QVBoxLayout(inc); il.setContentsMargins(10, 8, 10, 8); il.setSpacing(6)
 
         ih = QHBoxLayout(); ih.setSpacing(8)
         it = QLabel("אמנים שימוינו")
-        it.setObjectName("incTitle")
+        it.setStyleSheet("font-size:15px; font-weight:900; color:#0f172a;")
         self.result_count_label = QLabel("0 אמנים")
-        self.result_count_label.setProperty("cssClass", "badgeBlue")
+        self.result_count_label.setStyleSheet("""
+            font-size:11px; font-weight:800; color:#2563eb;
+            background:#eff6ff; border:1px solid #bfdbfe;
+            border-radius:10px; padding:2px 10px;
+        """)
         ih.addWidget(self.result_count_label, 0)
         ih.addWidget(it, 1)
         il.addLayout(ih)
@@ -760,7 +991,11 @@ class SortingTab(QWidget):
         self.empty_results_label = QLabel("לחץ 'סרוק שוב' כדי להתחיל")
         self.empty_results_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty_results_label.setWordWrap(True)
-        self.empty_results_label.setObjectName("emptyResults")
+        self.empty_results_label.setStyleSheet("""
+            font-size: 13px; font-weight: 800; color: #94a3b8;
+            background: #f8fafc; border: 1px dashed #e2e8f0;
+            border-radius: 8px; padding: 10px;
+        """)
         il.addWidget(self.empty_results_label)
 
         self.scanned_artists_list = QListWidget()
@@ -771,19 +1006,30 @@ class SortingTab(QWidget):
 
         # ── excluded panel ──
         exc = QFrame(); exc.setObjectName("excPanel")
+        exc.setStyleSheet("QFrame#excPanel { background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; }")
         el = QVBoxLayout(exc); el.setContentsMargins(10, 8, 10, 8); el.setSpacing(6)
 
         eh = QHBoxLayout(); eh.setSpacing(8)
         self.excluded_title = QLabel("לא ימוינו")
-        self.excluded_title.setObjectName("excTitle")
+        self.excluded_title.setStyleSheet("font-size:15px; font-weight:900; color:#92400e;")
         self.excluded_count_label = QLabel("0 אמנים")
-        self.excluded_count_label.setProperty("cssClass", "badgeAmber")
+        self.excluded_count_label.setStyleSheet("""
+            font-size:11px; font-weight:800; color:#92400e;
+            background:#fef3c7; border:1px solid #fde68a;
+            border-radius:10px; padding:2px 10px;
+        """)
         eh.addWidget(self.excluded_count_label, 0)
         eh.addWidget(self.excluded_title, 1)
         el.addLayout(eh)
 
         self.excluded_artists_list = QListWidget()
-        self.excluded_artists_list.setObjectName("excludedList")
+        self.excluded_artists_list.setStyleSheet("""
+            QListWidget {
+                border: none; border-radius: 8px; background: #fffef5;
+                padding: 2px; outline: none;
+            }
+            QListWidget::item { padding: 0; border: none; margin: 1px 0; background: transparent; }
+        """)
         el.addWidget(self.excluded_artists_list, 1)
 
         self.exc_panel = exc
@@ -795,26 +1041,43 @@ class SortingTab(QWidget):
         # ── unrecognized files panel ──
         self.unrec_panel = QFrame()
         self.unrec_panel.setObjectName("unrecPanel")
+        self.unrec_panel.setStyleSheet("QFrame#unrecPanel { background: #fdf4ff; border: 1px solid #e9d5ff; border-radius: 12px; }")
         url = QVBoxLayout(self.unrec_panel)
         url.setContentsMargins(10, 8, 10, 8)
         url.setSpacing(6)
 
         urh = QHBoxLayout(); urh.setSpacing(8)
         self.unrec_title = QLabel("שירים לא מזוהים")
-        self.unrec_title.setObjectName("unrecTitle")
+        self.unrec_title.setStyleSheet("font-size:15px; font-weight:900; color:#6b21a8;")
         self.unrec_count_label = QLabel("0 שירים")
-        self.unrec_count_label.setProperty("cssClass", "badgePurple")
+        self.unrec_count_label.setStyleSheet("""
+            font-size:11px; font-weight:800; color:#6b21a8;
+            background:#f3e8ff; border:1px solid #e9d5ff;
+            border-radius:10px; padding:2px 10px;
+        """)
         self.unrec_assign_all_btn = QPushButton("הקצה אמן לכולם")
         self.unrec_assign_all_btn.setFixedHeight(28)
         self.unrec_assign_all_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.unrec_assign_all_btn.setProperty("cssClass", "accent")
+        self.unrec_assign_all_btn.setStyleSheet("""
+            QPushButton {
+                background: #6d28d9; color: #fff; border: none; border-radius: 7px;
+                padding: 2px 12px; font-size: 12px; font-weight: 800;
+            }
+            QPushButton:hover { background: #5b21b6; }
+        """)
         urh.addWidget(self.unrec_count_label, 0)
         urh.addWidget(self.unrec_title, 1)
         urh.addWidget(self.unrec_assign_all_btn, 0)
         url.addLayout(urh)
 
         self.unrec_list = QListWidget()
-        self.unrec_list.setObjectName("unrecList")
+        self.unrec_list.setStyleSheet("""
+            QListWidget {
+                border: none; border-radius: 8px; background: transparent;
+                padding: 2px; outline: none;
+            }
+            QListWidget::item { padding: 0; border: none; margin: 2px 0; background: transparent; }
+        """)
         self.unrec_list.setMaximumHeight(200)
         url.addWidget(self.unrec_list, 1)
 
@@ -949,20 +1212,34 @@ class SortingTab(QWidget):
         dlg.setWindowTitle(title)
         dlg.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         dlg.setMinimumWidth(320)
+        dlg.setStyleSheet("""
+            QDialog { background: #f8fafc; }
+            QLabel { background: transparent; color: #1e293b; }
+            QPushButton { min-height: 34px; border-radius: 8px; font-size: 13px; font-weight: 800; padding: 6px 14px; }
+        """)
         layout = QVBoxLayout(dlg)
         layout.setSpacing(10)
         layout.setContentsMargins(16, 16, 16, 16)
 
         lbl = QLabel("בחר תיקייה קיימת או צור תיקייה חדשה:")
-        lbl.setProperty("cssClass", "labelBold")
+        lbl.setStyleSheet("font-size: 13px; font-weight: 700;")
         layout.addWidget(lbl)
 
         btn_existing = QPushButton("עיון — בחר תיקייה קיימת")
-        btn_existing.setProperty("cssClass", "primary")
+        btn_existing.setStyleSheet("""
+            QPushButton { background: #3b82f6; color: #fff; border: none; }
+            QPushButton:hover { background: #2563eb; }
+        """)
         btn_new = QPushButton("צור תיקייה חדשה")
-        btn_new.setProperty("cssClass", "success")
+        btn_new.setStyleSheet("""
+            QPushButton { background: #22c55e; color: #fff; border: none; }
+            QPushButton:hover { background: #16a34a; }
+        """)
         btn_cancel = QPushButton("ביטול")
-        btn_cancel.setProperty("cssClass", "secondary")
+        btn_cancel.setStyleSheet("""
+            QPushButton { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+            QPushButton:hover { background: #e2e8f0; }
+        """)
         layout.addWidget(btn_existing)
         layout.addWidget(btn_new)
         layout.addWidget(btn_cancel)
@@ -985,24 +1262,45 @@ class SortingTab(QWidget):
             name_dlg.setWindowTitle("שם תיקייה חדשה")
             name_dlg.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
             name_dlg.setMinimumWidth(300)
+            name_dlg.setStyleSheet("""
+                QDialog { background: #f8fafc; }
+                QLabel { background: transparent; color: #1e293b; }
+                QPushButton {
+                    min-height: 34px; border-radius: 8px;
+                    font-size: 13px; font-weight: 800; padding: 6px 18px;
+                }
+            """)
             nd_layout = QVBoxLayout(name_dlg)
             nd_layout.setSpacing(10)
             nd_layout.setContentsMargins(16, 16, 16, 16)
 
             nd_lbl = QLabel("הזן שם לתיקייה החדשה:")
-            nd_lbl.setProperty("cssClass", "labelBold")
+            nd_lbl.setStyleSheet("font-size: 13px; font-weight: 700;")
             nd_layout.addWidget(nd_lbl)
 
             nd_edit = HebrewLineEdit()
+            nd_edit.setStyleSheet("""
+                QLineEdit {
+                    background: #fff; border: 1.5px solid #e2e8f0; border-radius: 8px;
+                    padding: 4px 8px; font-size: 13px; font-weight: 700; color: #1e293b;
+                }
+                QLineEdit:focus { border: 1.5px solid #3b82f6; }
+            """)
             nd_edit.setFixedHeight(34)
             nd_layout.addWidget(nd_edit)
 
             nd_btn_row = QHBoxLayout()
             nd_btn_row.setSpacing(8)
             nd_btn_ok = QPushButton("אישור")
-            nd_btn_ok.setProperty("cssClass", "primary")
+            nd_btn_ok.setStyleSheet("""
+                QPushButton { background: #3b82f6; color: #fff; border: none; }
+                QPushButton:hover { background: #2563eb; }
+            """)
             nd_btn_cancel = QPushButton("ביטול")
-            nd_btn_cancel.setProperty("cssClass", "secondary")
+            nd_btn_cancel.setStyleSheet("""
+                QPushButton { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+                QPushButton:hover { background: #e2e8f0; }
+            """)
             nd_btn_ok.clicked.connect(name_dlg.accept)
             nd_btn_cancel.clicked.connect(name_dlg.reject)
             nd_btn_row.addStretch()
