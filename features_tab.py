@@ -412,9 +412,11 @@ class FeaturesTab(QWidget):
         tl.addWidget(self._convert_btn)
 
         self._convert_widget = QWidget()
-        self._convert_widget.setStyleSheet("QWidget { background: transparent; border: none; }")
+        self._convert_widget.setStyleSheet(
+            "QWidget { background: #e8eef6; border: 1px solid #c3d5ee; border-radius: 8px; }"
+        )
         convert_layout = QVBoxLayout(self._convert_widget)
-        convert_layout.setContentsMargins(4, 2, 4, 2)
+        convert_layout.setContentsMargins(10, 8, 10, 8)
         convert_layout.setSpacing(6)
 
         # Source format
@@ -494,6 +496,85 @@ class FeaturesTab(QWidget):
 
         self._convert_widget.setVisible(False)
         tl.addWidget(self._convert_widget)
+
+        # ── "Replace image" button + options ──────────────────────────
+        hr_tools4 = QFrame()
+        hr_tools4.setFrameShape(QFrame.Shape.HLine)
+        hr_tools4.setStyleSheet("border: none; background: #c3d5ee; max-height: 1px;")
+        tl.addWidget(hr_tools4)
+
+        self._replace_img_btn = QPushButton("החלפת תמונה לקובץ")
+        self._replace_img_btn.setStyleSheet(_BTN_PRIMARY)
+        self._replace_img_btn.clicked.connect(self._toggle_replace_img_panel)
+        tl.addWidget(self._replace_img_btn)
+
+        self._replace_img_widget = QWidget()
+        self._replace_img_widget.setStyleSheet(
+            "QWidget { background: #e8eef6; border: 1px solid #c3d5ee; border-radius: 8px; }"
+        )
+        replace_img_layout = QVBoxLayout(self._replace_img_widget)
+        replace_img_layout.setContentsMargins(10, 8, 10, 8)
+        replace_img_layout.setSpacing(6)
+
+        # Song file selector
+        song_row = QHBoxLayout()
+        song_row.setSpacing(8)
+        song_lbl = QLabel("קובץ שיר:")
+        song_lbl.setStyleSheet(_LBL_SMALL)
+        self._replace_img_song_path = HebrewLineEdit()
+        self._replace_img_song_path.setPlaceholderText("בחר קובץ שמע...")
+        self._replace_img_song_path.setStyleSheet(_INPUT_STYLE)
+        self._replace_img_song_browse = QPushButton("עיון...")
+        self._replace_img_song_browse.setStyleSheet("""
+            QPushButton {background: #4682b4; color: #fff; border-radius: 6px; padding: 5px 12px; font-size:13px;}
+            QPushButton:hover {background: #1e4972;}
+        """)
+        self._replace_img_song_browse.clicked.connect(self._browse_replace_img_song)
+        song_row.addWidget(song_lbl)
+        song_row.addWidget(self._replace_img_song_path, 1)
+        song_row.addWidget(self._replace_img_song_browse)
+        replace_img_layout.addLayout(song_row)
+
+        # Image file selector
+        img_row = QHBoxLayout()
+        img_row.setSpacing(8)
+        img_lbl = QLabel("קובץ תמונה:")
+        img_lbl.setStyleSheet(_LBL_SMALL)
+        self._replace_img_image_path = HebrewLineEdit()
+        self._replace_img_image_path.setPlaceholderText("בחר תמונה...")
+        self._replace_img_image_path.setStyleSheet(_INPUT_STYLE)
+        self._replace_img_image_browse = QPushButton("עיון...")
+        self._replace_img_image_browse.setStyleSheet("""
+            QPushButton {background: #4682b4; color: #fff; border-radius: 6px; padding: 5px 12px; font-size:13px;}
+            QPushButton:hover {background: #1e4972;}
+        """)
+        self._replace_img_image_browse.clicked.connect(self._browse_replace_img_image)
+        img_row.addWidget(img_lbl)
+        img_row.addWidget(self._replace_img_image_path, 1)
+        img_row.addWidget(self._replace_img_image_browse)
+        replace_img_layout.addLayout(img_row)
+
+        # Image preview label
+        self._replace_img_preview = QLabel()
+        self._replace_img_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._replace_img_preview.setFixedHeight(140)
+        self._replace_img_preview.setStyleSheet("background: transparent; border: none;")
+        replace_img_layout.addWidget(self._replace_img_preview)
+
+        # Execute button
+        self._replace_img_exec_btn = QPushButton("החלף תמונה")
+        self._replace_img_exec_btn.setStyleSheet("""
+            QPushButton {
+                background: #2e86c1; color: #fff; border-radius: 8px;
+                padding: 7px 24px; font-size: 14px; font-weight: 600;
+            }
+            QPushButton:hover { background: #1a5276; }
+        """)
+        self._replace_img_exec_btn.clicked.connect(self._execute_replace_image)
+        replace_img_layout.addWidget(self._replace_img_exec_btn, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        self._replace_img_widget.setVisible(False)
+        tl.addWidget(self._replace_img_widget)
 
         tl.addStretch()
 
@@ -1375,11 +1456,22 @@ class FeaturesTab(QWidget):
                 continue
 
             try:
+                # Extract album art from source before conversion
+                src_art_data, src_art_mime = self._extract_album_art_raw(src_path)
+
                 audio = AudioSegment.from_file(str(src_path))
                 export_params: dict = {"format": tgt_pydub_fmt}
                 if tgt_fmt_text in self._LOSSY_FORMATS and bitrate is not None:
                     export_params["bitrate"] = bitrate
                 audio.export(str(tgt_path), **export_params)
+
+                # Re-embed album art into the converted file
+                if src_art_data:
+                    try:
+                        self._embed_album_art(tgt_path, src_art_data, src_art_mime)
+                    except Exception:
+                        pass  # conversion succeeded even if art embedding fails
+
                 converted += 1
 
                 if delete_originals:
@@ -1427,6 +1519,253 @@ class FeaturesTab(QWidget):
                 pass
         files.sort(key=lambda p: p.name.lower())
         return files
+
+    # ── Album art helpers ─────────────────────────────────────────────────
+
+    @staticmethod
+    def _extract_album_art_raw(path: Path) -> tuple[bytes | None, str]:
+        """Return (image_bytes, mime_type) from an audio file, or (None, '')."""
+        if MutagenFile is None:
+            return None, ""
+        try:
+            audio = MutagenFile(str(path))
+        except Exception:
+            return None, ""
+        if audio is None:
+            return None, ""
+
+        tags = getattr(audio, "tags", None)
+
+        # ID3 (MP3, AIFF, …)
+        if tags is not None and hasattr(tags, "getall"):
+            try:
+                apic_list = tags.getall("APIC")
+                if apic_list:
+                    data = getattr(apic_list[0], "data", None)
+                    mime = getattr(apic_list[0], "mime", "image/jpeg")
+                    if data:
+                        return bytes(data), mime
+            except Exception:
+                pass
+
+        # FLAC / OGG Vorbis pictures
+        if hasattr(audio, "pictures"):
+            try:
+                pics = getattr(audio, "pictures", [])
+                if pics:
+                    data = getattr(pics[0], "data", None)
+                    mime = getattr(pics[0], "mime", "image/jpeg")
+                    if data:
+                        return bytes(data), mime
+            except Exception:
+                pass
+
+        # MP4 / M4A cover art
+        if tags is not None and hasattr(tags, "get"):
+            try:
+                covr = tags.get("covr")
+                if covr:
+                    raw = bytes(covr[0])
+                    fmt = getattr(covr[0], "imageformat", None)
+                    mime = "image/png" if fmt == 14 else "image/jpeg"
+                    return raw, mime
+            except Exception:
+                pass
+
+        return None, ""
+
+    @staticmethod
+    def _embed_album_art(path: Path, image_data: bytes, mime_type: str) -> None:
+        """Embed album art into an audio file using mutagen."""
+        if MutagenFile is None:
+            return
+
+        ext = path.suffix.lower()
+
+        if ext in (".mp3",):
+            from mutagen.id3 import ID3, APIC, ID3NoHeaderError
+            try:
+                tags = ID3(str(path))
+            except ID3NoHeaderError:
+                tags = ID3()
+            tags.delall("APIC")
+            tags.add(APIC(
+                encoding=3,  # UTF-8
+                mime=mime_type,
+                type=3,  # Cover (front)
+                desc="Cover",
+                data=image_data,
+            ))
+            tags.save(str(path))
+
+        elif ext in (".flac",):
+            from mutagen.flac import FLAC, Picture
+            audio = FLAC(str(path))
+            audio.clear_pictures()
+            pic = Picture()
+            pic.type = 3
+            pic.mime = mime_type
+            pic.desc = "Cover"
+            pic.data = image_data
+            audio.add_picture(pic)
+            audio.save()
+
+        elif ext in (".ogg", ".opus"):
+            import base64
+            from mutagen.oggvorbis import OggVorbis
+            from mutagen.oggopus import OggOpus
+            from mutagen.flac import Picture
+            AudioClass = OggOpus if ext == ".opus" else OggVorbis
+            audio = AudioClass(str(path))
+            pic = Picture()
+            pic.type = 3
+            pic.mime = mime_type
+            pic.desc = "Cover"
+            pic.data = image_data
+            encoded = base64.b64encode(pic.write()).decode("ascii")
+            audio["metadata_block_picture"] = [encoded]
+            audio.save()
+
+        elif ext in (".m4a", ".mp4", ".aac"):
+            from mutagen.mp4 import MP4, MP4Cover
+            audio = MP4(str(path))
+            fmt = MP4Cover.FORMAT_PNG if "png" in mime_type else MP4Cover.FORMAT_JPEG
+            audio.tags["covr"] = [MP4Cover(image_data, imageformat=fmt)]
+            audio.save()
+
+        elif ext in (".aiff", ".aif"):
+            from mutagen.id3 import ID3, APIC, ID3NoHeaderError
+            from mutagen.aiff import AIFF
+            audio = AIFF(str(path))
+            if audio.tags is None:
+                audio.add_tags()
+            audio.tags.delall("APIC")
+            audio.tags.add(APIC(
+                encoding=3,
+                mime=mime_type,
+                type=3,
+                desc="Cover",
+                data=image_data,
+            ))
+            audio.save()
+
+    # =========================================================================
+    # Replace image for a file
+    # =========================================================================
+
+    def _toggle_replace_img_panel(self) -> None:
+        self._replace_img_widget.setVisible(not self._replace_img_widget.isVisible())
+
+    def _browse_replace_img_song(self) -> None:
+        ext_list = " ".join(f"*{e}" for e in sorted(AUDIO_EXTENSIONS))
+        path, _ = QFileDialog.getOpenFileName(
+            self, "בחר קובץ שמע", "", f"קבצי שמע ({ext_list});;כל הקבצים (*)",
+        )
+        if path:
+            self._replace_img_song_path.setText(path)
+
+    def _browse_replace_img_image(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "בחר תמונה", "",
+            "קבצי תמונה (*.jpg *.jpeg *.png *.bmp *.gif *.webp *.tiff *.tif);;כל הקבצים (*)",
+        )
+        if path:
+            self._replace_img_image_path.setText(path)
+            # Show preview
+            pixmap = QPixmap(path)
+            if not pixmap.isNull():
+                scaled = pixmap.scaled(
+                    130, 130,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                self._replace_img_preview.setPixmap(scaled)
+            else:
+                self._replace_img_preview.setText("לא ניתן לטעון תצוגה מקדימה")
+
+    _COMPATIBLE_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+
+    def _execute_replace_image(self) -> None:
+        if MutagenFile is None:
+            QMessageBox.warning(
+                self, "חסרה ספרייה",
+                "ספריית mutagen אינה מותקנת.\n"
+                "יש להתקין אותה עם: pip install mutagen",
+            )
+            return
+
+        song_path_str = self._replace_img_song_path.text().strip()
+        image_path_str = self._replace_img_image_path.text().strip()
+
+        if not song_path_str or not os.path.isfile(song_path_str):
+            QMessageBox.warning(self, "שגיאה", "יש לבחור קובץ שמע תקין.")
+            return
+
+        if not image_path_str or not os.path.isfile(image_path_str):
+            QMessageBox.warning(self, "שגיאה", "יש לבחור קובץ תמונה תקין.")
+            return
+
+        song_path = Path(song_path_str)
+        image_path = Path(image_path_str)
+
+        if song_path.suffix.lower() not in AUDIO_EXTENSIONS:
+            QMessageBox.warning(self, "שגיאה", "הקובץ שנבחר אינו קובץ שמע מוכר.")
+            return
+
+        # Read image data – convert to JPEG if not a compatible format
+        img_ext = image_path.suffix.lower()
+        if img_ext not in self._COMPATIBLE_IMAGE_EXTENSIONS:
+            # Auto-convert to JPEG
+            try:
+                from PIL import Image as PILImage
+            except ImportError:
+                QMessageBox.warning(
+                    self, "חסרה ספרייה",
+                    "ספריית Pillow אינה מותקנת.\n"
+                    "יש להתקין אותה עם: pip install Pillow\n"
+                    "הספרייה נדרשת להמרת תמונות בפורמט לא נתמך.",
+                )
+                return
+
+            try:
+                img = PILImage.open(str(image_path))
+                if img.mode in ("RGBA", "P", "LA"):
+                    img = img.convert("RGB")
+                converted_path = image_path.with_suffix(".jpg")
+                # Don't overwrite existing file
+                if converted_path.exists():
+                    base = image_path.stem
+                    idx = 1
+                    while converted_path.exists():
+                        converted_path = image_path.parent / f"{base}_converted_{idx}.jpg"
+                        idx += 1
+                img.save(str(converted_path), "JPEG", quality=95)
+                image_path = converted_path
+                img_ext = ".jpg"
+                QMessageBox.information(
+                    self, "המרת תמונה",
+                    f"התמונה הומרה אוטומטית לפורמט JPEG ונשמרה כ:\n{converted_path.name}",
+                )
+            except Exception as e:
+                QMessageBox.warning(self, "שגיאת המרת תמונה", f"לא ניתן להמיר את התמונה:\n{e}")
+                return
+
+        try:
+            image_data = image_path.read_bytes()
+        except Exception as e:
+            QMessageBox.warning(self, "שגיאה", f"לא ניתן לקרוא את קובץ התמונה:\n{e}")
+            return
+
+        mime_type = "image/png" if img_ext == ".png" else "image/jpeg"
+
+        try:
+            self._embed_album_art(song_path, image_data, mime_type)
+            QMessageBox.information(
+                self, "החלפת תמונה",
+                f"התמונה הוחלפה בהצלחה עבור:\n{song_path.name}",
+            )
+        except Exception as e:
+            QMessageBox.warning(self, "שגיאה", f"לא ניתן להחליף את התמונה:\n{e}")
 
     # =========================================================================
     # Option 2 – Add artist name
