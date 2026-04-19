@@ -97,23 +97,74 @@ class StartupLoadingDialog(QDialog):
         self._last_done_seen_at: float | None = None
         self._ready_written = False
 
-        self.setObjectName("loadingDialog")
         self.setWindowTitle("טוען...")
         self.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
         self.setMinimumSize(640, 360)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
 
-        # Load QSS if running standalone
-        qss_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "style.qss")
-        if os.path.isfile(qss_path):
-            with open(qss_path, "r", encoding="utf-8") as f:
-                self.setStyleSheet(f.read())
+        self.setStyleSheet("""
+            QDialog {
+                background: qlineargradient(
+                    x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #0c1c33,
+                    stop:1 #295f8f
+                );
+                border: 1px solid rgba(255,255,255,0.18);
+                border-radius: 24px;
+            }
+
+            QWidget#panel {
+                background: rgba(255, 255, 255, 0.08);
+                border: 1px solid rgba(255, 255, 255, 0.14);
+                border-radius: 20px;
+            }
+
+            QLabel#titleLabel {
+                color: white;
+                font-size: 30px;
+                font-weight: 850;
+                background: transparent;
+            }
+
+            QLabel#statusLabel {
+                color: #d9ebff;
+                font-size: 15px;
+                font-weight: 600;
+                background: transparent;
+            }
+
+            QLabel#percentLabel {
+                color: #ffe082;
+                font-size: 20px;
+                font-weight: 900;
+                background: transparent;
+            }
+
+            QProgressBar#progressBar {
+                border: none;
+                border-radius: 10px;
+                background: rgba(255,255,255,0.14);
+                min-height: 16px;
+                max-height: 16px;
+                text-align: center;
+                padding: 0;
+            }
+
+            QProgressBar#progressBar::chunk {
+                border-radius: 10px;
+                background: qlineargradient(
+                    x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #ffe082,
+                    stop:1 #ffca28
+                );
+            }
+        """)
 
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(22, 22, 22, 22)
 
         panel = QWidget()
-        panel.setObjectName("loadingPanel")
+        panel.setObjectName("panel")
         outer_layout.addWidget(panel)
 
         layout = QVBoxLayout(panel)
@@ -123,21 +174,21 @@ class StartupLoadingDialog(QDialog):
         self.spinner = LoadingSpinner()
 
         self.title_label = QLabel("מנהל שירים חכם")
-        self.title_label.setObjectName("loadingTitle")
+        self.title_label.setObjectName("titleLabel")
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.status_label = QLabel("מפעיל את התוכנה...")
-        self.status_label.setObjectName("loadingStatus")
+        self.status_label.setObjectName("statusLabel")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.progress_bar = QProgressBar()
-        self.progress_bar.setObjectName("loadingProgressBar")
+        self.progress_bar.setObjectName("progressBar")
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(False)
 
         self.percent_label = QLabel("0%")
-        self.percent_label.setObjectName("loadingPercent")
+        self.percent_label.setObjectName("percentLabel")
         self.percent_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.thinking_bar = ThinkingBar()

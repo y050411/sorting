@@ -21,15 +21,6 @@ def app_data_path(filename: str) -> str:
     return os.path.join(base_dir, filename)
 
 
-def load_stylesheet() -> str:
-    """Load the application QSS stylesheet."""
-    qss_path = app_data_path("style.qss")
-    if os.path.isfile(qss_path):
-        with open(qss_path, "r", encoding="utf-8") as f:
-            return f.read()
-    return ""
-
-
 class HebrewLineEdit(QLineEdit):
     def contextMenuEvent(self, event):
         menu = QMenu(self)
@@ -72,25 +63,29 @@ class FolderSelector(QWidget):
     def __init__(self):
         super().__init__()
         self.current_folder = ""
-        self.setObjectName("folderSelector")
+
         self.setAcceptDrops(True)
 
         layout = QHBoxLayout(self)
-        layout.setSpacing(12)
-        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(10)
+        layout.setContentsMargins(0, 0, 0, 0)
 
         title = QLabel("בחר תיקיית שירים:")
-        title.setObjectName("folderTitle")
+        title.setStyleSheet("font-size:17px; font-weight: bold;")
 
         self.path_edit = HebrewLineEdit()
         self.path_edit.setReadOnly(False)
         self.path_edit.setPlaceholderText("אפשר להדביק נתיב, או לגרור תיקייה לכאן...")
         self.path_edit.setMinimumWidth(350)
+        self.path_edit.setStyleSheet("background: #fff; font-size: 16px; padding: 6px;")
         self.path_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.path_edit.setAcceptDrops(True)
 
         browse_btn = QPushButton("עיון...")
-        browse_btn.setObjectName("browseFolderBtn")
+        browse_btn.setStyleSheet("""
+            QPushButton {background: #4682b4; color: #fff; border-radius: 8px; padding: 7px 18px; font-size:16px;}
+            QPushButton:hover {background: #1e4972;}
+        """)
         browse_btn.clicked.connect(self.open_dialog)
 
         self.path_edit.textChanged.connect(self.on_path_changed)
@@ -98,6 +93,8 @@ class FolderSelector(QWidget):
         layout.addWidget(title)
         layout.addWidget(self.path_edit)
         layout.addWidget(browse_btn)
+
+        self._set_valid_style(is_valid=True)
 
     def open_dialog(self):
         folder = QFileDialog.getExistingDirectory(self, "בחר תיקיה")
@@ -110,13 +107,15 @@ class FolderSelector(QWidget):
         self._set_valid_style(is_valid=is_valid)
 
     def _set_valid_style(self, is_valid: bool):
-        self.path_edit.setProperty("cssClass", "invalid" if not is_valid else "")
-        self.path_edit.style().unpolish(self.path_edit)
-        self.path_edit.style().polish(self.path_edit)
+        if is_valid:
+            self.path_edit.setStyleSheet("background: #fff; font-size: 16px; padding: 6px;")
+        else:
+            self.path_edit.setStyleSheet("background: #ffe5e5; font-size: 16px; padding: 6px;")
 
     def dragEnterEvent(self, event: QDragEnterEvent):
         if self._event_has_local_file(event):
             event.acceptProposedAction()
+            self.path_edit.setStyleSheet("background: #e8f2ff; font-size: 16px; padding: 6px;")
         else:
             event.ignore()
 
@@ -166,8 +165,7 @@ class PlaceholderTab(QWidget):
         layout = QVBoxLayout(self)
         placeholder = QLabel(f"זה המקום של: {name}")
         placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        placeholder.setProperty("cssClass", "pageTitle")
-        placeholder.setStyleSheet("padding: 50px; color: #64748b;")
+        placeholder.setStyleSheet("font-size: 30px; color: #555; padding: 50px;")
         layout.addWidget(placeholder)
         layout.addStretch()
 
