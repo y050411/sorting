@@ -423,7 +423,7 @@ class FeaturesTab(QWidget):
         src_fmt_lbl = QLabel("פורמט מקור:")
         src_fmt_lbl.setStyleSheet(_LBL_SMALL)
         self._convert_src_fmt = QComboBox()
-        self._convert_src_fmt.addItems(["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "כל הפורמטים"])
+        self._convert_src_fmt.addItems(["mp3", "flac", "wav", "ogg", "m4a", "mp4", "aac", "opus", "aiff", "כל הפורמטים"])
         self._convert_src_fmt.setCurrentText("mp3")
         self._convert_src_fmt.setStyleSheet("font-size: 13px; padding: 3px 6px;")
         src_fmt_row.addWidget(src_fmt_lbl)
@@ -451,8 +451,8 @@ class FeaturesTab(QWidget):
         bitrate_lbl = QLabel("ביטרייט (kbps, לפורמטים דחוסים):")
         bitrate_lbl.setStyleSheet(_LBL_SMALL)
         self._convert_bitrate = QComboBox()
-        self._convert_bitrate.addItems(["128", "192", "256", "320"])
-        self._convert_bitrate.setCurrentText("320")
+        self._convert_bitrate.addItems(["אוטומטי", "128", "192", "256", "320"])
+        self._convert_bitrate.setCurrentText("אוטומטי")
         self._convert_bitrate.setStyleSheet("font-size: 13px; padding: 3px 6px;")
         bitrate_row.addWidget(bitrate_lbl)
         bitrate_row.addWidget(self._convert_bitrate)
@@ -1267,6 +1267,7 @@ class FeaturesTab(QWidget):
         "wav":  ("wav",  ".wav"),
         "ogg":  ("ogg",  ".ogg"),
         "m4a":  ("mp4",  ".m4a"),
+        "mp4":  ("mp4",  ".mp4"),
         "aac":  ("adts", ".aac"),
         "opus": ("opus", ".opus"),
         "aiff": ("aiff", ".aiff"),
@@ -1300,11 +1301,17 @@ class FeaturesTab(QWidget):
             QMessageBox.warning(self, "שגיאה", "פורמט המקור והיעד זהים.")
             return
 
+        tgt_info = self._CONVERT_FORMAT_MAP.get(tgt_fmt_text)
+        if tgt_info is None:
+            QMessageBox.warning(self, "שגיאה", "פורמט יעד לא מוכר.")
+            return
+        tgt_pydub_fmt, tgt_ext = tgt_info
+
         # Determine source extensions to look for
         if src_fmt_text == "כל הפורמטים":
             src_extensions = set()
             for fmt_key, (_, ext) in self._CONVERT_FORMAT_MAP.items():
-                if fmt_key != tgt_fmt_text:
+                if ext != tgt_ext:
                     src_extensions.add(ext)
         else:
             src_info = self._CONVERT_FORMAT_MAP.get(src_fmt_text)
@@ -1313,15 +1320,10 @@ class FeaturesTab(QWidget):
                 return
             src_extensions = {src_info[1]}
 
-        tgt_info = self._CONVERT_FORMAT_MAP.get(tgt_fmt_text)
-        if tgt_info is None:
-            QMessageBox.warning(self, "שגיאה", "פורמט יעד לא מוכר.")
-            return
-        tgt_pydub_fmt, tgt_ext = tgt_info
-
         include_sub = self._convert_scope_sub.isChecked()
         delete_originals = self._convert_delete_orig.isChecked()
-        bitrate = self._convert_bitrate.currentText() + "k"
+        bitrate_text = self._convert_bitrate.currentText()
+        bitrate = None if bitrate_text == "אוטומטי" else bitrate_text + "k"
 
         # Collect source files
         files = self._collect_files_for_conversion(folder, src_extensions, include_sub)
@@ -1330,12 +1332,13 @@ class FeaturesTab(QWidget):
             return
 
         # Confirm
+        bitrate_display = bitrate if bitrate else "אוטומטי"
         delete_note = "\nקבצי המקור יימחקו לאחר המרה מוצלחת." if delete_originals else ""
         reply = QMessageBox.question(
             self, "אישור המרה",
             f"נמצאו {len(files)} קבצים להמרה.\n"
             f"מקור: {src_fmt_text} → יעד: {tgt_fmt_text}\n"
-            f"ביטרייט: {bitrate}{delete_note}",
+            f"ביטרייט: {bitrate_display}{delete_note}",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
@@ -1361,6 +1364,11 @@ class FeaturesTab(QWidget):
 
             tgt_path = src_path.with_suffix(tgt_ext)
 
+            # Skip if the file is already in the target format
+            if src_path.suffix.lower() == tgt_ext.lower():
+                skipped.append(str(src_path.name))
+                continue
+
             # Avoid overwriting existing files
             if tgt_path.exists():
                 skipped.append(str(src_path.name))
@@ -1369,7 +1377,7 @@ class FeaturesTab(QWidget):
             try:
                 audio = AudioSegment.from_file(str(src_path))
                 export_params: dict = {"format": tgt_pydub_fmt}
-                if tgt_fmt_text in self._LOSSY_FORMATS:
+                if tgt_fmt_text in self._LOSSY_FORMATS and bitrate is not None:
                     export_params["bitrate"] = bitrate
                 audio.export(str(tgt_path), **export_params)
                 converted += 1
