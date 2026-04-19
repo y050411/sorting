@@ -828,9 +828,10 @@ class FeaturesTab(QWidget):
         if len(trimmed) == 0:
             payload = b""
         else:
+            sampled = trimmed[: max(1, (len(trimmed) + 4) // 5)]
             payload = (
-                f"{trimmed.frame_rate}|{trimmed.channels}|{trimmed.sample_width}|".encode("utf-8")
-                + trimmed.raw_data
+                f"{sampled.frame_rate}|{sampled.channels}|{sampled.sample_width}|".encode("utf-8")
+                + sampled.raw_data
             )
         return hashlib.sha256(payload).hexdigest()
 
