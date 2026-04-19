@@ -61,6 +61,19 @@ _SILENCE_DBFS_FOR_SILENT = -50
 _SILENCE_DBFS_OFFSET = 16
 _SILENCE_CHUNK_MS = 10
 _AUDIO_SIGNATURE_SAMPLE_RATIO = 0.2
+_VOCAL_METADATA_KEYWORD = "vocal"
+_VOCAL_METADATA_KEYS = ("title", "genre", "comment", "album", "description")
+_VOCAL_FILENAME_KEYWORDS = (
+    "vocal",
+    "ווקאלי",
+    "ווקלי",
+    "וקאלי",
+    "אקפלה",
+    "acapella",
+    "a capella",
+    "a cappella",
+)
+_MAX_UNIQUE_FILENAME_ATTEMPTS = 10000
 
 # ---------------------------------------------------------------------------
 # Styles
@@ -578,6 +591,85 @@ class FeaturesTab(QWidget):
 
         self._replace_img_widget.setVisible(False)
         tl.addWidget(self._replace_img_widget)
+
+        # ── "Vocal sorting" button + options ───────────────────────────
+        hr_tools5 = QFrame()
+        hr_tools5.setFrameShape(QFrame.Shape.HLine)
+        hr_tools5.setStyleSheet("border: none; background: #c3d5ee; max-height: 1px;")
+        tl.addWidget(hr_tools5)
+
+        self._vocal_sort_btn = QPushButton("מיון ווקאלי")
+        self._vocal_sort_btn.setStyleSheet(_BTN_PRIMARY)
+        self._vocal_sort_btn.clicked.connect(self._toggle_vocal_sort_panel)
+        tl.addWidget(self._vocal_sort_btn)
+
+        self._vocal_sort_widget = QWidget()
+        self._vocal_sort_widget.setStyleSheet(
+            "QWidget { background: #e8eef6; border: 1px solid #c3d5ee; border-radius: 8px; }"
+        )
+        vocal_layout = QVBoxLayout(self._vocal_sort_widget)
+        vocal_layout.setContentsMargins(10, 8, 10, 8)
+        vocal_layout.setSpacing(6)
+
+        vocal_target_row = QHBoxLayout()
+        vocal_target_row.setSpacing(8)
+        vocal_target_lbl = QLabel("תיקיית יעד:")
+        vocal_target_lbl.setStyleSheet(_LBL_SMALL)
+        self._vocal_target_path = HebrewLineEdit()
+        self._vocal_target_path.setPlaceholderText("הכנס נתיב תיקיית יעד...")
+        self._vocal_target_path.setStyleSheet(_INPUT_STYLE)
+        self._vocal_target_browse_btn = QPushButton("עיון...")
+        self._vocal_target_browse_btn.setStyleSheet("""
+            QPushButton {background: #4682b4; color: #fff; border-radius: 6px; padding: 5px 12px; font-size:13px;}
+            QPushButton:hover {background: #1e4972;}
+        """)
+        self._vocal_target_browse_btn.clicked.connect(self._browse_vocal_target)
+        vocal_target_row.addWidget(vocal_target_lbl)
+        vocal_target_row.addWidget(self._vocal_target_path, 1)
+        vocal_target_row.addWidget(self._vocal_target_browse_btn)
+        vocal_layout.addLayout(vocal_target_row)
+
+        vocal_scope_row = QHBoxLayout()
+        vocal_scope_row.setSpacing(12)
+        self._vocal_scope_grp = QButtonGroup(self)
+        self._vocal_scope_main = QRadioButton("תיקייה ראשית בלבד")
+        self._vocal_scope_sub = QRadioButton("כולל תתי-תיקיות")
+        self._vocal_scope_main.setChecked(True)
+        for rb in (self._vocal_scope_main, self._vocal_scope_sub):
+            rb.setStyleSheet("font-size: 13px; color: #333;")
+            self._vocal_scope_grp.addButton(rb)
+        vocal_scope_row.addWidget(self._vocal_scope_main)
+        vocal_scope_row.addWidget(self._vocal_scope_sub)
+        vocal_scope_row.addStretch()
+        vocal_layout.addLayout(vocal_scope_row)
+
+        vocal_mode_row = QHBoxLayout()
+        vocal_mode_row.setSpacing(12)
+        self._vocal_mode_grp = QButtonGroup(self)
+        self._vocal_mode_copy = QRadioButton("העתק")
+        self._vocal_mode_move = QRadioButton("העבר")
+        self._vocal_mode_copy.setChecked(True)
+        for rb in (self._vocal_mode_copy, self._vocal_mode_move):
+            rb.setStyleSheet("font-size: 13px; color: #333;")
+            self._vocal_mode_grp.addButton(rb)
+        vocal_mode_row.addWidget(self._vocal_mode_copy)
+        vocal_mode_row.addWidget(self._vocal_mode_move)
+        vocal_mode_row.addStretch()
+        vocal_layout.addLayout(vocal_mode_row)
+
+        self._vocal_exec_btn = QPushButton("בצע מיון ווקאלי")
+        self._vocal_exec_btn.setStyleSheet("""
+            QPushButton {
+                background: #2e86c1; color: #fff; border-radius: 8px;
+                padding: 7px 24px; font-size: 14px; font-weight: 600;
+            }
+            QPushButton:hover { background: #1a5276; }
+        """)
+        self._vocal_exec_btn.clicked.connect(self._execute_vocal_sort)
+        vocal_layout.addWidget(self._vocal_exec_btn, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        self._vocal_sort_widget.setVisible(False)
+        tl.addWidget(self._vocal_sort_widget)
 
         tl.addStretch()
 
@@ -1754,6 +1846,178 @@ class FeaturesTab(QWidget):
 
     def _toggle_replace_img_panel(self) -> None:
         self._replace_img_widget.setVisible(not self._replace_img_widget.isVisible())
+
+    def _toggle_vocal_sort_panel(self) -> None:
+        self._vocal_sort_widget.setVisible(not self._vocal_sort_widget.isVisible())
+
+    def _browse_vocal_target(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "בחר תיקיית יעד")
+        if folder:
+            self._vocal_target_path.setText(folder)
+
+    @staticmethod
+    def _metadata_contains_vocal(path: Path) -> bool:
+        if MutagenFile is None:
+            return False
+        try:
+            audio = MutagenFile(str(path), easy=True)
+            if audio is None:
+                return False
+            for key in _VOCAL_METADATA_KEYS:
+                for value in audio.get(key, []):
+                    if _VOCAL_METADATA_KEYWORD in str(value).lower():
+                        return True
+        except Exception:
+            return False
+        return False
+
+    @staticmethod
+    def _filename_contains_vocal(path: Path) -> bool:
+        stem = path.stem.lower()
+        return any(keyword in stem for keyword in _VOCAL_FILENAME_KEYWORDS)
+
+    def _is_vocal_file(self, path: Path) -> bool:
+        return self._filename_contains_vocal(path) or self._metadata_contains_vocal(path)
+
+    @staticmethod
+    def _make_unique_destination(target_dir: Path, filename: str) -> Path:
+        dest = target_dir / filename
+        if not dest.exists():
+            return dest
+        stem = dest.stem
+        suffix = dest.suffix
+        counter = 1
+        while dest.exists() and counter < _MAX_UNIQUE_FILENAME_ATTEMPTS:
+            dest = target_dir / f"{stem} ({counter}){suffix}"
+            counter += 1
+        if dest.exists():
+            raise FileExistsError(f"לא ניתן ליצור שם קובץ ייחודי עבור: {filename}")
+        return dest
+
+    def _execute_vocal_sort(self) -> None:
+        source = self._get_folder()
+        if not source or not os.path.isdir(source):
+            QMessageBox.warning(self, "שגיאה", "יש לבחור תיקיית מקור תחילה.")
+            return
+
+        target = self._vocal_target_path.text().strip()
+        if not target:
+            QMessageBox.warning(self, "שגיאה", "יש להכניס נתיב תיקיית יעד.")
+            return
+
+        if not os.path.isdir(target):
+            reply = QMessageBox.question(
+                self, "תיקיית יעד",
+                f"תיקיית היעד לא קיימת:\n{target}\n\nליצור אותה?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+            try:
+                os.makedirs(target, exist_ok=True)
+            except OSError as e:
+                QMessageBox.warning(self, "שגיאה", f"לא ניתן ליצור את התיקייה:\n{e}")
+                return
+
+        include_sub = self._vocal_scope_sub.isChecked()
+        files = (
+            self._list_audio_files_recursive(source)
+            if include_sub
+            else self._list_audio_files_flat(source)
+        )
+        if not files:
+            QMessageBox.information(self, "מיון ווקאלי", "לא נמצאו קבצי שמע בתיקיית המקור.")
+            return
+
+        mode_text = "העברה" if self._vocal_mode_move.isChecked() else "העתקה"
+        confirm = QMessageBox.question(
+            self, "מיון ווקאלי",
+            f"נמצאו {len(files)} קבצים לסריקה.\n"
+            f"הפעולה: {mode_text}\n"
+            f"תיקיית יעד: {target}\n\nלהמשיך?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        progress = QProgressDialog("סורק קבצים ווקאליים...", "ביטול", 0, len(files), self)
+        progress.setWindowTitle("מיון ווקאלי")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(0)
+
+        matched: list[Path] = []
+        for idx, file_path in enumerate(files, start=1):
+            if progress.wasCanceled():
+                break
+            progress.setValue(idx)
+            progress.setLabelText(f"סורק: {file_path.name}  ({idx}/{len(files)})")
+            if self._is_vocal_file(file_path):
+                matched.append(file_path)
+            if self._should_process_progress_events(idx, len(files)):
+                QApplication.processEvents()
+
+        if progress.wasCanceled():
+            progress.close()
+            QMessageBox.information(self, "מיון ווקאלי", "הסריקה בוטלה על ידי המשתמש.")
+            return
+
+        if not matched:
+            progress.close()
+            QMessageBox.information(self, "מיון ווקאלי", "לא נמצאו קבצים ווקאליים.")
+            return
+
+        if self._undo_manager:
+            self._undo_manager.begin_batch(
+                f"מיון ווקאלי — {mode_text} של {len(matched)} קבצים"
+            )
+
+        done = 0
+        errors: list[str] = []
+        target_dir = Path(target)
+        move_mode = self._vocal_mode_move.isChecked()
+        progress.setRange(0, len(matched))
+        progress.setValue(0)
+
+        for idx, src in enumerate(matched, start=1):
+            if progress.wasCanceled():
+                break
+            progress.setValue(idx)
+            progress.setLabelText(f"{'מעביר' if move_mode else 'מעתיק'}: {src.name}  ({idx}/{len(matched)})")
+            dest = self._make_unique_destination(target_dir, src.name)
+            try:
+                if move_mode:
+                    shutil.move(str(src), str(dest))
+                    if self._undo_manager:
+                        self._undo_manager.record_move(str(src), str(dest))
+                else:
+                    shutil.copy2(str(src), str(dest))
+                    if self._undo_manager:
+                        self._undo_manager.record_copy(str(src), str(dest))
+                done += 1
+            except OSError as e:
+                errors.append(f"{src.name}: {e}")
+            if self._should_process_progress_events(idx, len(matched)):
+                QApplication.processEvents()
+
+        progress.close()
+
+        if self._undo_manager:
+            self._undo_manager.end_batch()
+
+        summary = (
+            f"הסריקה הושלמה.\n"
+            f"נמצאו {len(matched)} קבצים ווקאליים.\n"
+            f"{'הועברו' if move_mode else 'הועתקו'} {done} קבצים."
+        )
+        if progress.wasCanceled():
+            summary += "\n\nהפעולה הופסקה על ידי המשתמש."
+        if errors:
+            summary += "\n\nשגיאות:\n" + "\n".join(errors[:_MAX_MSG_ITEMS])
+
+        if errors:
+            QMessageBox.warning(self, "מיון ווקאלי", summary)
+        else:
+            QMessageBox.information(self, "מיון ווקאלי", summary)
 
     def _browse_replace_img_song(self) -> None:
         ext_list = " ".join(f"*{e}" for e in sorted(AUDIO_EXTENSIONS))
