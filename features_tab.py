@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QCheckBox, QMessageBox, QRadioButton, QButtonGroup,
     QFrame, QInputDialog, QDialog, QTextEdit, QDialogButtonBox, QScrollArea,
-    QProgressDialog, QFileDialog,
+    QProgressDialog, QFileDialog, QComboBox, QSpinBox,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
@@ -399,6 +399,101 @@ class FeaturesTab(QWidget):
 
         self._del_empty_widget.setVisible(False)
         tl.addWidget(self._del_empty_widget)
+
+        # ── "Convert audio files" button + options ────────────────────
+        hr_tools3 = QFrame()
+        hr_tools3.setFrameShape(QFrame.Shape.HLine)
+        hr_tools3.setStyleSheet("border: none; background: #c3d5ee; max-height: 1px;")
+        tl.addWidget(hr_tools3)
+
+        self._convert_btn = QPushButton("המרת קבצי שמע")
+        self._convert_btn.setStyleSheet(_BTN_PRIMARY)
+        self._convert_btn.clicked.connect(self._toggle_convert_panel)
+        tl.addWidget(self._convert_btn)
+
+        self._convert_widget = QWidget()
+        self._convert_widget.setStyleSheet("QWidget { background: transparent; border: none; }")
+        convert_layout = QVBoxLayout(self._convert_widget)
+        convert_layout.setContentsMargins(4, 2, 4, 2)
+        convert_layout.setSpacing(6)
+
+        # Source format
+        src_fmt_row = QHBoxLayout()
+        src_fmt_row.setSpacing(8)
+        src_fmt_lbl = QLabel("פורמט מקור:")
+        src_fmt_lbl.setStyleSheet(_LBL_SMALL)
+        self._convert_src_fmt = QComboBox()
+        self._convert_src_fmt.addItems(["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "כל הפורמטים"])
+        self._convert_src_fmt.setCurrentText("mp3")
+        self._convert_src_fmt.setStyleSheet("font-size: 13px; padding: 3px 6px;")
+        src_fmt_row.addWidget(src_fmt_lbl)
+        src_fmt_row.addWidget(self._convert_src_fmt)
+        src_fmt_row.addStretch()
+        convert_layout.addLayout(src_fmt_row)
+
+        # Target format
+        tgt_fmt_row = QHBoxLayout()
+        tgt_fmt_row.setSpacing(8)
+        tgt_fmt_lbl = QLabel("פורמט יעד:")
+        tgt_fmt_lbl.setStyleSheet(_LBL_SMALL)
+        self._convert_tgt_fmt = QComboBox()
+        self._convert_tgt_fmt.addItems(["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff"])
+        self._convert_tgt_fmt.setCurrentText("flac")
+        self._convert_tgt_fmt.setStyleSheet("font-size: 13px; padding: 3px 6px;")
+        tgt_fmt_row.addWidget(tgt_fmt_lbl)
+        tgt_fmt_row.addWidget(self._convert_tgt_fmt)
+        tgt_fmt_row.addStretch()
+        convert_layout.addLayout(tgt_fmt_row)
+
+        # Bitrate (relevant for lossy formats)
+        bitrate_row = QHBoxLayout()
+        bitrate_row.setSpacing(8)
+        bitrate_lbl = QLabel("ביטרייט (kbps, לפורמטים דחוסים):")
+        bitrate_lbl.setStyleSheet(_LBL_SMALL)
+        self._convert_bitrate = QComboBox()
+        self._convert_bitrate.addItems(["128", "192", "256", "320"])
+        self._convert_bitrate.setCurrentText("320")
+        self._convert_bitrate.setStyleSheet("font-size: 13px; padding: 3px 6px;")
+        bitrate_row.addWidget(bitrate_lbl)
+        bitrate_row.addWidget(self._convert_bitrate)
+        bitrate_row.addStretch()
+        convert_layout.addLayout(bitrate_row)
+
+        # Scope
+        convert_scope_row = QHBoxLayout()
+        convert_scope_row.setSpacing(12)
+        self._convert_scope_grp = QButtonGroup(self)
+        self._convert_scope_main = QRadioButton("תיקייה ראשית בלבד")
+        self._convert_scope_sub = QRadioButton("כולל תתי-תיקיות")
+        self._convert_scope_main.setChecked(True)
+        for rb in (self._convert_scope_main, self._convert_scope_sub):
+            rb.setStyleSheet("font-size: 13px; color: #333;")
+            self._convert_scope_grp.addButton(rb)
+        convert_scope_row.addWidget(self._convert_scope_main)
+        convert_scope_row.addWidget(self._convert_scope_sub)
+        convert_scope_row.addStretch()
+        convert_layout.addLayout(convert_scope_row)
+
+        # Delete originals option
+        self._convert_delete_orig = QCheckBox("מחק קבצי מקור לאחר המרה מוצלחת")
+        self._convert_delete_orig.setStyleSheet("font-size: 13px; color: #333;")
+        self._convert_delete_orig.setChecked(False)
+        convert_layout.addWidget(self._convert_delete_orig)
+
+        # Execute button
+        self._convert_exec_btn = QPushButton("בצע המרה")
+        self._convert_exec_btn.setStyleSheet("""
+            QPushButton {
+                background: #2e86c1; color: #fff; border-radius: 8px;
+                padding: 7px 24px; font-size: 14px; font-weight: 600;
+            }
+            QPushButton:hover { background: #1a5276; }
+        """)
+        self._convert_exec_btn.clicked.connect(self._execute_convert_files)
+        convert_layout.addWidget(self._convert_exec_btn, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        self._convert_widget.setVisible(False)
+        tl.addWidget(self._convert_widget)
 
         tl.addStretch()
 
@@ -1160,6 +1255,170 @@ class FeaturesTab(QWidget):
             except OSError:
                 pass
         return empty_dirs
+
+    # =========================================================================
+    # Convert audio files
+    # =========================================================================
+
+    # Mapping from user-facing format name to pydub export format and extension
+    _CONVERT_FORMAT_MAP: dict[str, tuple[str, str]] = {
+        "mp3":  ("mp3",  ".mp3"),
+        "flac": ("flac", ".flac"),
+        "wav":  ("wav",  ".wav"),
+        "ogg":  ("ogg",  ".ogg"),
+        "m4a":  ("mp4",  ".m4a"),
+        "aac":  ("adts", ".aac"),
+        "opus": ("opus", ".opus"),
+        "aiff": ("aiff", ".aiff"),
+    }
+
+    # Formats that benefit from a bitrate parameter (lossy codecs)
+    _LOSSY_FORMATS = {"mp3", "ogg", "m4a", "aac", "opus"}
+
+    def _toggle_convert_panel(self) -> None:
+        self._convert_widget.setVisible(not self._convert_widget.isVisible())
+
+    def _execute_convert_files(self) -> None:
+        if AudioSegment is None:
+            QMessageBox.warning(
+                self, "חסרה ספרייה",
+                "ספריית pydub אינה מותקנת.\n"
+                "יש להתקין אותה עם: pip install pydub\n"
+                "וכן להתקין FFmpeg במערכת.",
+            )
+            return
+
+        folder = self._get_folder()
+        if not folder or not os.path.isdir(folder):
+            QMessageBox.warning(self, "שגיאה", "יש לבחור תיקייה תחילה.")
+            return
+
+        src_fmt_text = self._convert_src_fmt.currentText()
+        tgt_fmt_text = self._convert_tgt_fmt.currentText()
+
+        if src_fmt_text == tgt_fmt_text:
+            QMessageBox.warning(self, "שגיאה", "פורמט המקור והיעד זהים.")
+            return
+
+        # Determine source extensions to look for
+        if src_fmt_text == "כל הפורמטים":
+            src_extensions = set()
+            for fmt_key, (_, ext) in self._CONVERT_FORMAT_MAP.items():
+                if fmt_key != tgt_fmt_text:
+                    src_extensions.add(ext)
+        else:
+            src_info = self._CONVERT_FORMAT_MAP.get(src_fmt_text)
+            if src_info is None:
+                QMessageBox.warning(self, "שגיאה", "פורמט מקור לא מוכר.")
+                return
+            src_extensions = {src_info[1]}
+
+        tgt_info = self._CONVERT_FORMAT_MAP.get(tgt_fmt_text)
+        if tgt_info is None:
+            QMessageBox.warning(self, "שגיאה", "פורמט יעד לא מוכר.")
+            return
+        tgt_pydub_fmt, tgt_ext = tgt_info
+
+        include_sub = self._convert_scope_sub.isChecked()
+        delete_originals = self._convert_delete_orig.isChecked()
+        bitrate = self._convert_bitrate.currentText() + "k"
+
+        # Collect source files
+        files = self._collect_files_for_conversion(folder, src_extensions, include_sub)
+        if not files:
+            QMessageBox.information(self, "אין קבצים", "לא נמצאו קבצים בפורמט המקור שנבחר.")
+            return
+
+        # Confirm
+        delete_note = "\nקבצי המקור יימחקו לאחר המרה מוצלחת." if delete_originals else ""
+        reply = QMessageBox.question(
+            self, "אישור המרה",
+            f"נמצאו {len(files)} קבצים להמרה.\n"
+            f"מקור: {src_fmt_text} → יעד: {tgt_fmt_text}\n"
+            f"ביטרייט: {bitrate}{delete_note}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        # Progress dialog
+        progress = QProgressDialog("מתחיל המרה...", "ביטול", 0, len(files), self)
+        progress.setWindowTitle("המרת קבצי שמע")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(0)
+
+        converted = 0
+        errors: list[str] = []
+        skipped: list[str] = []
+
+        for i, src_path in enumerate(files):
+            if progress.wasCanceled():
+                break
+
+            progress.setValue(i)
+            progress.setLabelText(f"ממיר: {src_path.name}  ({i + 1}/{len(files)})")
+            QApplication.processEvents()
+
+            tgt_path = src_path.with_suffix(tgt_ext)
+
+            # Avoid overwriting existing files
+            if tgt_path.exists():
+                skipped.append(str(src_path.name))
+                continue
+
+            try:
+                audio = AudioSegment.from_file(str(src_path))
+                export_params: dict = {"format": tgt_pydub_fmt}
+                if tgt_fmt_text in self._LOSSY_FORMATS:
+                    export_params["bitrate"] = bitrate
+                audio.export(str(tgt_path), **export_params)
+                converted += 1
+
+                if delete_originals:
+                    try:
+                        src_path.unlink()
+                    except OSError as e:
+                        errors.append(f"מחיקת מקור נכשלה – {src_path.name}: {e}")
+
+            except Exception as e:
+                errors.append(f"{src_path.name}: {e}")
+
+        progress.setValue(len(files))
+
+        # Summary
+        summary = f"הושלם: {converted} קבצים הומרו בהצלחה."
+        if skipped:
+            summary += (
+                f"\n\n{len(skipped)} קבצים נדלגו (קובץ יעד כבר קיים):\n"
+                + "\n".join(skipped[:_MAX_MSG_ITEMS])
+            )
+        if errors:
+            summary += "\n\nשגיאות:\n" + "\n".join(errors[:_MAX_MSG_ITEMS])
+
+        if errors:
+            QMessageBox.warning(self, "המרה הושלמה עם שגיאות", summary)
+        else:
+            QMessageBox.information(self, "המרת קבצי שמע", summary)
+
+    def _collect_files_for_conversion(
+        self, folder: str, extensions: set[str], include_sub: bool,
+    ) -> list[Path]:
+        files: list[Path] = []
+        if include_sub:
+            for dirpath, _, filenames in os.walk(folder):
+                for fn in filenames:
+                    if Path(fn).suffix.lower() in extensions:
+                        files.append(Path(dirpath) / fn)
+        else:
+            try:
+                for entry in os.scandir(folder):
+                    if entry.is_file(follow_symlinks=False):
+                        if Path(entry.name).suffix.lower() in extensions:
+                            files.append(Path(entry.path))
+            except OSError:
+                pass
+        files.sort(key=lambda p: p.name.lower())
+        return files
 
     # =========================================================================
     # Option 2 – Add artist name
