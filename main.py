@@ -316,40 +316,6 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(18)
         main_layout.setContentsMargins(15, 15, 15, 15)
 
-        # ── Top toolbar with Undo + Save Settings buttons ──
-        toolbar_row = QHBoxLayout()
-        toolbar_row.setSpacing(10)
-
-        self.undo_btn = QPushButton("↩ ביטול פעולות")
-        self.undo_btn.setToolTip("הצג את היסטוריית הפעולות ובטל פעולות שבוצעו")
-        self.undo_btn.setStyleSheet("""
-            QPushButton {
-                background: #e74c3c; color: #fff; border-radius: 10px;
-                padding: 8px 22px; font-size: 15px; font-weight: 800;
-                min-height: 36px;
-            }
-            QPushButton:hover { background: #c0392b; }
-            QPushButton:disabled { background: #ccc; color: #888; }
-        """)
-        self.undo_btn.clicked.connect(self._open_undo_dialog)
-        toolbar_row.addWidget(self.undo_btn)
-
-        self.save_settings_btn = QPushButton("💾 שמור הגדרות")
-        self.save_settings_btn.setToolTip("שמור את כל הבחירות הנוכחיות כברירת מחדל לפעם הבאה")
-        self.save_settings_btn.setStyleSheet("""
-            QPushButton {
-                background: #27ae60; color: #fff; border-radius: 10px;
-                padding: 8px 22px; font-size: 15px; font-weight: 800;
-                min-height: 36px;
-            }
-            QPushButton:hover { background: #1e8449; }
-        """)
-        self.save_settings_btn.clicked.connect(self._save_settings)
-        toolbar_row.addWidget(self.save_settings_btn)
-
-        toolbar_row.addStretch()
-        main_layout.addLayout(toolbar_row)
-
         self._set_loading_status("טוען רכיבי בחירת תיקייה...", 12)
         self.folder_selector = FolderSelector()
         main_layout.addWidget(self.folder_selector)
@@ -363,6 +329,52 @@ class MainWindow(QMainWindow):
             QTabBar::tab { background: #daeaff; min-width:150px; min-height: 38px; font-size:17px; margin:2px; padding: 4px 10px; }
         """)
         tabs.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+
+        # ── Buttons next to the tabs ──
+        corner_widget = QWidget()
+        corner_layout = QHBoxLayout(corner_widget)
+        corner_layout.setContentsMargins(4, 2, 4, 2)
+        corner_layout.setSpacing(6)
+
+        self.undo_btn = QPushButton("↩ ביטול פעולות")
+        self.undo_btn.setToolTip("הצג את היסטוריית הפעולות ובטל פעולות שבוצעו")
+        self.undo_btn.setStyleSheet("""
+            QPushButton {
+                background: #e74c3c; color: #fff; border-radius: 8px;
+                padding: 5px 14px; font-size: 13px; font-weight: 800;
+            }
+            QPushButton:hover { background: #c0392b; }
+            QPushButton:disabled { background: #ccc; color: #888; }
+        """)
+        self.undo_btn.clicked.connect(self._open_undo_dialog)
+        corner_layout.addWidget(self.undo_btn)
+
+        self.save_settings_btn = QPushButton("💾 שמור הגדרות")
+        self.save_settings_btn.setToolTip("שמור את כל הבחירות הנוכחיות כברירת מחדל לפעם הבאה")
+        self.save_settings_btn.setStyleSheet("""
+            QPushButton {
+                background: #27ae60; color: #fff; border-radius: 8px;
+                padding: 5px 14px; font-size: 13px; font-weight: 800;
+            }
+            QPushButton:hover { background: #1e8449; }
+        """)
+        self.save_settings_btn.clicked.connect(self._save_settings)
+        corner_layout.addWidget(self.save_settings_btn)
+
+        self.reset_settings_btn = QPushButton("🔄 איפוס הגדרות")
+        self.reset_settings_btn.setToolTip("מחק את כל ההגדרות השמורות וחזור לברירות המחדל")
+        self.reset_settings_btn.setStyleSheet("""
+            QPushButton {
+                background: #e67e22; color: #fff; border-radius: 8px;
+                padding: 5px 14px; font-size: 13px; font-weight: 800;
+            }
+            QPushButton:hover { background: #d35400; }
+        """)
+        self.reset_settings_btn.clicked.connect(self._reset_settings)
+        corner_layout.addWidget(self.reset_settings_btn)
+
+        tabs.setCornerWidget(corner_widget, Qt.Corner.TopLeftCorner)
+
         self._set_loading_status("מבנה הלשוניות הוכן", 45)
 
         def artists_progress(current, total):
@@ -416,6 +428,22 @@ class MainWindow(QMainWindow):
             "ההגדרות נשמרו בהצלחה!\n"
             "בפעם הבאה שתפתח את התוכנה, הבחירות שלך יופעלו אוטומטית.",
         )
+
+    # ── Reset settings ─────────────────────────────────────────────────
+    def _reset_settings(self):
+        reply = QMessageBox.question(
+            self, "איפוס הגדרות",
+            "האם אתה בטוח שברצונך לאפס את כל ההגדרות השמורות?\n"
+            "בפעם הבאה שתפתח את התוכנה, לא ייטענו הגדרות שמורות.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.settings_manager.clear()
+            QMessageBox.information(
+                self, "איפוס הגדרות",
+                "ההגדרות אופסו בהצלחה!\n"
+                "בפעם הבאה שתפתח את התוכנה, לא ייטענו הגדרות שמורות.",
+            )
 
     def _apply_saved_settings(self):
         sm = self.settings_manager
