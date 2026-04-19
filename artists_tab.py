@@ -2640,14 +2640,14 @@ class ArtistsTab(QWidget):
                             # Find which main artist this entry is similar to
                             best_main = None
                             for md, me, ta in main_targets:
-                                me_name = me["name"] if me else ""
-                                if me_name and self._are_similar_artists(entry_name, me_name):
+                                if self._are_similar_artists(entry_name, me["name"]):
                                     best_main = ta
                                     break
                             if best_main:
                                 self._absorb_name_into_artist(best_main, entry_name)
                             else:
-                                # Fallback: absorb under the first main artist
+                                # Entry is in the cluster via transitivity but not directly
+                                # similar to either main – absorb under the first main artist
                                 self._absorb_name_into_artist(main_targets[0][2], entry_name)
 
                 self._save_aliases_to_file()
