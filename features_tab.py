@@ -830,8 +830,8 @@ class FeaturesTab(QWidget):
         if len(trimmed) == 0:
             payload = b""
         else:
-            sample_length_ms = max(1, math.ceil(len(trimmed) * _AUDIO_SIGNATURE_SAMPLE_RATIO))
-            sampled = trimmed[:sample_length_ms]
+            sample_duration_ms = max(1, math.ceil(len(trimmed) * _AUDIO_SIGNATURE_SAMPLE_RATIO))
+            sampled = trimmed[:sample_duration_ms]
             payload = (
                 f"{sampled.frame_rate}|{sampled.channels}|{sampled.sample_width}|".encode("utf-8")
                 + sampled.raw_data
