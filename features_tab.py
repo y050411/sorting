@@ -1567,6 +1567,7 @@ class FeaturesTab(QWidget):
                 if covr:
                     raw = bytes(covr[0])
                     fmt = getattr(covr[0], "imageformat", None)
+                    # imageformat 14 == MP4Cover.FORMAT_PNG in mutagen.mp4
                     mime = "image/png" if fmt == 14 else "image/jpeg"
                     return raw, mime
             except Exception:
