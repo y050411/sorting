@@ -224,7 +224,7 @@ class SimilarArtistsDialog(QDialog):
         self._artists = artists
         self._split_candidates = split_candidates
         self._state: dict[str, str] = {name: "alias" for name in artists}
-        self._main_artist: str | None = None
+        self._main_artists: list[str] = []
         self._split_values: dict[str, tuple[str, str]] = {}
         self._rows: dict[str, dict[str, object]] = {}
         self._split_suggestions = split_suggestions
@@ -237,7 +237,7 @@ class SimilarArtistsDialog(QDialog):
         title.setStyleSheet("font-size: 16px; font-weight: 800; color: #1c355e;")
         root.addWidget(title)
 
-        hint = QLabel('בחירה ב-"אמן עיקרי" תסמן אוטומטית את שאר האמנים באשכול ככינויים, מלבד אמנים שסומנו כ-"אל תכלול" או "פצל".')
+        hint = QLabel('ניתן לסמן עד שני אמנים כ-"אמן עיקרי". כל שאר האמנים באשכול שדומים לאמן עיקרי מסוים יוגדרו ככינויים שלו, מלבד אמנים שסומנו כ-"אל תכלול" או "פצל".')
         hint.setWordWrap(True)
         hint.setStyleSheet("font-size: 12px; color: #555;")
         root.addWidget(hint)
@@ -312,28 +312,42 @@ class SimilarArtistsDialog(QDialog):
 
     def _set_main_artist(self, name: str):
         self._split_values.pop(name, None)
-        self._main_artist = name
 
+        if name in self._main_artists:
+            # Toggle off: clicking again removes main status
+            self._main_artists.remove(name)
+            self._state[name] = "alias"
+        elif len(self._main_artists) < 2:
+            # Add as main artist (up to 2 allowed)
+            self._main_artists.append(name)
+            self._state[name] = "main"
+        else:
+            # Already 2 main artists – replace the first one
+            old = self._main_artists.pop(0)
+            self._state[old] = "alias"
+            self._main_artists.append(name)
+            self._state[name] = "main"
+
+        # Reset non-main, non-ignored, non-split artists to alias
         for artist in self._artists:
-            if artist == name:
-                self._state[artist] = "main"
-            elif self._state.get(artist) in {"ignore", "split"}:
+            if artist in self._main_artists:
                 continue
-            else:
-                self._state[artist] = "alias"
+            if self._state.get(artist) in {"ignore", "split"}:
+                continue
+            self._state[artist] = "alias"
 
         self._refresh_rows()
 
     def _set_alias(self, name: str):
-        if self._main_artist == name:
-            self._main_artist = None
+        if name in self._main_artists:
+            self._main_artists.remove(name)
         self._split_values.pop(name, None)
         self._state[name] = "alias"
         self._refresh_rows()
 
     def _set_ignored(self, name: str):
-        if self._main_artist == name:
-            self._main_artist = None
+        if name in self._main_artists:
+            self._main_artists.remove(name)
         self._split_values.pop(name, None)
         self._state[name] = "ignore"
         self._refresh_rows()
@@ -347,8 +361,8 @@ class SimilarArtistsDialog(QDialog):
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
 
-        if self._main_artist == name:
-            self._main_artist = None
+        if name in self._main_artists:
+            self._main_artists.remove(name)
 
         self._split_values[name] = dlg.get_names()
         self._state[name] = "split"
@@ -375,7 +389,8 @@ class SimilarArtistsDialog(QDialog):
 
     def get_selection(self) -> dict:
         return {
-            "main_artist": self._main_artist,
+            "main_artist": self._main_artists[0] if len(self._main_artists) == 1 else None,
+            "main_artists": list(self._main_artists),
             "ignored": [n for n, state in self._state.items() if state == "ignore"],
             "split_map": dict(self._split_values),
             "aliases": [n for n, state in self._state.items() if state == "alias"],
@@ -2488,7 +2503,12 @@ class ArtistsTab(QWidget):
                     return
 
                 selection = dlg.get_selection()
-                main_artist_display = selection.get("main_artist")
+                main_artists_display: list[str] = selection.get("main_artists", [])
+                # Backward compat: single main_artist fallback
+                if not main_artists_display:
+                    single = selection.get("main_artist")
+                    if single:
+                        main_artists_display = [single]
                 ignored = selection.get("ignored", [])
                 split_map = selection.get("split_map", {})
 
@@ -2541,11 +2561,11 @@ class ArtistsTab(QWidget):
 
                 requires_main_artist = len(unresolved_entries) > 0
 
-                if requires_main_artist and not main_artist_display:
+                if requires_main_artist and not main_artists_display:
                     QMessageBox.warning(
                         self,
                         "שגיאה",
-                        'חייבים לבחור "אמן עיקרי" אחד, אלא אם כל השמות באשכול כבר נפתרו דרך פיצול או הוחרגו.'
+                        'חייבים לבחור לפחות "אמן עיקרי" אחד, אלא אם כל השמות באשכול כבר נפתרו דרך פיצול או הוחרגו.'
                     )
                     continue
 
@@ -2592,16 +2612,43 @@ class ArtistsTab(QWidget):
                             self._absorb_name_into_artist(matched_target, candidate_name)
                         break
 
-                if main_artist_display:
-                    main_entry = entries_by_display.get(main_artist_display)
-                    target_artist = self._compare_entry_to_target_artist(main_entry) if main_entry else None
+                main_entries_display_set = set(main_artists_display)
+                if main_artists_display:
+                    # Build a map: main_display -> (main_entry, target_artist)
+                    main_targets: list[tuple[str, dict[str, str], str]] = []
+                    for md in main_artists_display:
+                        me = entries_by_display.get(md)
+                        ta = self._compare_entry_to_target_artist(me) if me else None
+                        if ta:
+                            main_targets.append((md, me, ta))
 
-                    if target_artist:
+                    if len(main_targets) == 1:
+                        # Single main artist – absorb all unresolved under it
+                        _, main_entry, target_artist = main_targets[0]
                         for display_name in active_names:
                             entry = entries_by_display.get(display_name)
                             if not entry or entry is main_entry:
                                 continue
                             self._absorb_name_into_artist(target_artist, entry["name"])
+                    elif len(main_targets) >= 2:
+                        # Multiple main artists – each absorbs only similar artists
+                        for display_name in active_names:
+                            entry = entries_by_display.get(display_name)
+                            if not entry or display_name in main_entries_display_set:
+                                continue
+                            entry_name = entry["name"]
+                            # Find which main artist this entry is similar to
+                            best_main = None
+                            for md, me, ta in main_targets:
+                                me_name = me["name"] if me else ""
+                                if me_name and self._are_similar_artists(entry_name, me_name):
+                                    best_main = ta
+                                    break
+                            if best_main:
+                                self._absorb_name_into_artist(best_main, entry_name)
+                            else:
+                                # Fallback: absorb under the first main artist
+                                self._absorb_name_into_artist(main_targets[0][2], entry_name)
 
                 self._save_aliases_to_file()
                 self.save_artists_to_file()
