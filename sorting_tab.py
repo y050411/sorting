@@ -620,12 +620,13 @@ class SortingTab(QWidget):
     # Combined set kept for backward compatibility
     SUPPORTED_EXTENSIONS = AUDIO_EXTENSIONS | VIDEO_EXTENSIONS
 
-    def __init__(self, artists_tab):
+    def __init__(self, artists_tab, undo_manager=None):
         super().__init__()
         self.setFont(QFont("Assistant", 10))
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         self.artists_tab = artists_tab
+        self._undo_manager = undo_manager
         self._scanned_artist_names: list[str] = []
         self._sort_mode_selected: str | None = None
         self._animated_sections: list[QWidget] = []
@@ -1966,6 +1967,12 @@ class SortingTab(QWidget):
         errors: list[str] = []
         cancelled = False
 
+        # Begin undo batch
+        action_desc = "העתקת" if copy_mode else "העברת"
+        if self._undo_manager:
+            self._undo_manager.begin_batch(f"מיון שירים — {action_desc} {total_files} קבצים")
+        _created_dirs: set[str] = set()
+
         for proc_idx, (filepath, chosen_artists) in enumerate(file_chosen_artists.items()):
             if progress.wasCanceled():
                 cancelled = True
@@ -2015,20 +2022,30 @@ class SortingTab(QWidget):
                     else:
                         dest_folder = artist_folder
 
-                    os.makedirs(dest_folder, exist_ok=True)
+                    if not os.path.isdir(dest_folder):
+                        os.makedirs(dest_folder, exist_ok=True)
+                        if self._undo_manager and dest_folder not in _created_dirs:
+                            self._undo_manager.record_mkdir(dest_folder)
+                            _created_dirs.add(dest_folder)
                     dest_path = self._get_unique_dest_path(
                         os.path.join(dest_folder, filename)
                     )
 
                     if copy_mode:
                         shutil.copy2(filepath, dest_path)
+                        if self._undo_manager:
+                            self._undo_manager.record_copy(filepath, dest_path)
                     else:
                         if i == 0:
                             shutil.move(current_source, dest_path)
+                            if self._undo_manager:
+                                self._undo_manager.record_move(current_source, dest_path)
                             current_source = dest_path  # עדכון מיקום הקובץ
                         else:
                             # לאחר ההעברה הראשונה — העתקה מהמיקום החדש
                             shutil.copy2(current_source, dest_path)
+                            if self._undo_manager:
+                                self._undo_manager.record_copy(current_source, dest_path)
 
                 sorted_count += 1
 
@@ -2038,6 +2055,10 @@ class SortingTab(QWidget):
 
         progress.setValue(total_files)
         progress.close()
+
+        # End undo batch
+        if self._undo_manager:
+            self._undo_manager.end_batch()
 
         # --- שדרוג 3: הסרת שירים לא מזוהים ששייכים לאלבומים שנשאל עליהם המשתמש ---
         if use_album_logic and asked_album_names and self._unrecognized_files:
